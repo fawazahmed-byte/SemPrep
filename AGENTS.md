@@ -21,7 +21,7 @@ Subjects: `ml` Machine Learning, `flat` Formal Languages and Automata Theory, `a
 | Frontend | Plain HTML + CSS + vanilla JS | **No build step, no npm, no framework.** Files are served as-is. |
 | Libraries (CDN) | `@supabase/supabase-js@2.119.0` (jsDelivr), `pdf.js 3.11.174` (cdnjs), Google Fonts (Bricolage Grotesque, Figtree) | Pinned versions. Loaded in `index.html`. |
 | Backend | Supabase: Postgres + Row Level Security, Auth (email/password), Storage (private buckets), Realtime | No custom server. All rules live in `supabase/schema.sql`. |
-| Hosting | Cloudflare Pages (Free) | Auto-deploys on push to `main`: build command `bash build.sh`, output `dist`. |
+| Hosting | Cloudflare Workers static assets (Free) | Auto-deploys on push to `main`: build `bash build.sh`, deploy `npx wrangler deploy` (`wrangler.jsonc` → `dist/`). |
 
 ## 3. Files
 
@@ -39,6 +39,7 @@ js/icons.js                ICON_PATHS + icon(name, size) → inline SVG
 js/octo.js                 Octopus mascot SVG strings
 supabase/schema.sql        The whole backend: tables, triggers, RLS policies, RPC functions, storage buckets. Re-runnable.
 samples/quiz-sample-flat.pdf  Example quiz PDF in the import format (5 questions, 3 with diagrams)
+wrangler.jsonc             Cloudflare config: Worker "semprep" serving the static files in dist/
 build.sh                   Copies only the public files (index.html, css, js, samples, favicon) + a _headers file into dist/ for deployment
 .github/workflows/         supabase-keepalive.yml (daily ping so the free Supabase project isn't paused)
 docs/BACKEND.md            Everything about the Supabase backend
@@ -79,4 +80,4 @@ Open the folder in VS Code → right-click `index.html` → **Open with Live Ser
 
 ## 8. Deploy
 
-Cloudflare Pages is connected to the GitHub repo. Every push to `main` runs `bash build.sh` and publishes `dist/` (docs/, supabase/, AGENTS.md, README.md are never published). Routing is hash-based, so no server rewrites are needed. The keep-alive workflow needs the repo secrets `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
+Cloudflare (Worker "semprep") is connected to the GitHub repo. Every push to `main` runs `bash build.sh`, then `npx wrangler deploy`, which publishes `dist/` (docs/, supabase/, AGENTS.md, README.md are never published). Routing is hash-based, so no server rewrites are needed. The keep-alive workflow needs the repo secrets `SUPABASE_URL` and `SUPABASE_ANON_KEY`.

@@ -4,7 +4,7 @@ Study site for QISCET 3-1 students: unit material (view-only PDF reader), a quiz
 
 - **Frontend:** plain HTML/CSS/JS (no build). Open `index.html` with VS Code Live Server.
 - **Backend:** Supabase (Auth + Postgres RLS + private Storage). Schema: `supabase/schema.sql` (re-runnable).
-- **Hosting:** Cloudflare Pages (Free), auto-deploys from `main`. Build command `bash build.sh`, output directory `dist` (only public files).
+- **Hosting:** Cloudflare Workers static assets (Free), auto-deploys from `main`. Build command `bash build.sh`, deploy command `npx wrangler deploy` (config in `wrangler.jsonc`, publishes only `dist/`).
 
 ## Setup
 1. Run `supabase/schema.sql` in Supabase → SQL Editor.
