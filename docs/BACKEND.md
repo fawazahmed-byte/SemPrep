@@ -135,7 +135,7 @@ Two CHECK constraints enforce this (`materials_section_check`, `materials_check`
 |---|---|
 | Sign In / Providers → Email | **On**, **Confirm email on**, minimum password length 8 |
 | Phone, social logins, anonymous sign-ins | Off |
-| URL Configuration → Site URL | Your live site URL (the Azure URL) |
+| URL Configuration → Site URL | Your live site URL (the `*.pages.dev` address from Cloudflare Pages) |
 | URL Configuration → Redirect URLs | The live URL, `http://localhost:5500`, `http://127.0.0.1:5500` |
 | **Emails → SMTP Settings** | **Custom SMTP must be set up before launch** (see H) |
 | Rate Limits → emails per hour | Raise to ~100–200 after custom SMTP is set up (default 30) |
