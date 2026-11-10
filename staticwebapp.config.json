@@ -1,0 +1,15 @@
+{
+  "routes": [
+    { "route": "/supabase/*", "statusCode": 404 },
+    { "route": "/content/*", "statusCode": 404 },
+    { "route": "/.github/*", "statusCode": 404 },
+    { "route": "/README.md", "statusCode": 404 },
+    { "route": "/SEMPREP_BUILD_PLAN.md", "statusCode": 404 }
+  ],
+  "navigationFallback": { "rewrite": "/index.html", "exclude": ["/css/*", "/js/*", "/*.svg", "/*.json"] },
+  "globalHeaders": {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Frame-Options": "DENY"
+  }
+}
