@@ -2,10 +2,10 @@
 -- SemPrep — Supabase schema (re-runnable)
 -- =====================================================================
 create or replace function public.admin_email() returns text
-language sql immutable as $$ select 'syed.fawazahmed789@gmail.com'::text $$;
+language sql immutable set search_path = '' as $$ select 'syed.fawazahmed789@gmail.com'::text $$;
 
 create or replace function public.college_domain() returns text
-language sql immutable as $$ select 'qiscet.edu.in'::text $$;
+language sql immutable set search_path = '' as $$ select 'qiscet.edu.in'::text $$;
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -39,15 +39,22 @@ create table if not exists public.materials (
   id uuid primary key default gen_random_uuid(),
   subject_id text not null references public.subjects(id) on delete cascade,
   unit_id int references public.units(id) on delete cascade,
-  section text not null check (section in ('college','special','mid_answers','mid_bits')),
+  section text not null,
   title text not null,
   file_path text not null,
   page_count int not null default 0,
   sort_order int not null default 0,
   is_visible boolean not null default true,
-  created_at timestamptz not null default now(),
-  check ((section in ('college','special') and unit_id is not null) or (section in ('mid_answers','mid_bits') and unit_id is null))
+  created_at timestamptz not null default now()
 );
+-- sections: unit material (college/special) or subject-level exam material
+-- (mid answers, mid bits, 2-mark answers, cheat sheets, last minute revision sheets)
+alter table public.materials drop constraint if exists materials_section_check;
+alter table public.materials drop constraint if exists materials_check;
+alter table public.materials add constraint materials_section_check
+  check (section in ('college','special','mid_answers','mid_bits','two_marks','cheat_sheets','last_minute'));
+alter table public.materials add constraint materials_check
+  check ((section in ('college','special') and unit_id is not null) or (section in ('mid_answers','mid_bits','two_marks','cheat_sheets','last_minute') and unit_id is null));
 
 create table if not exists public.questions (
   id uuid primary key default gen_random_uuid(),
@@ -60,6 +67,7 @@ create table if not exists public.questions (
   is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
+alter table public.questions add column if not exists image_path text;  -- diagram in the quiz-images bucket
 
 create table if not exists public.quiz_attempts (
   id uuid primary key default gen_random_uuid(),
@@ -132,21 +140,23 @@ on conflict (key) do nothing;
 
 create or replace function public.is_admin() returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists (select 1 from public.profiles where id = auth.uid() and role = 'admin');
+  -- admin = admin role AND a confirmed email (an unverified signup with the admin address gets nothing)
+  select exists (select 1 from public.profiles p join auth.users u on u.id = p.id
+                 where p.id = auth.uid() and p.role = 'admin' and u.email_confirmed_at is not null);
 $$;
 
 create or replace function public.check_signup_email() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if lower(new.email) <> public.admin_email()
-     and lower(new.email) not like '%@' || public.college_domain() then
+  if coalesce(lower(new.email), '') <> public.admin_email()
+     and coalesce(lower(new.email), '') not like '%@' || public.college_domain() then
     raise exception 'Please use your college email (@%).', public.college_domain();
   end if;
   return new;
 end $$;
 
 drop trigger if exists check_signup_email on auth.users;
-create trigger check_signup_email before insert on auth.users
+create trigger check_signup_email before insert or update of email on auth.users
   for each row execute function public.check_signup_email();
 
 create or replace function public.handle_new_user() returns trigger
@@ -243,10 +253,11 @@ create policy "own feedback"   on public.feedback for all using (user_id = auth.
 create policy "settings read"  on public.app_settings for select using (true);
 create policy "settings admin" on public.app_settings for all using (public.is_admin()) with check (public.is_admin());
 
+drop function if exists public.get_quiz(int, int, uuid);
 create or replace function public.get_quiz(p_unit int, p_count int default 25, p_retry uuid default null)
-returns table (id uuid, topic text, question text, option_a text, option_b text, option_c text, option_d text)
+returns table (id uuid, topic text, question text, option_a text, option_b text, option_c text, option_d text, image_path text)
 language sql stable security definer set search_path = public as $$
-  select q.id, q.topic, q.question, q.option_a, q.option_b, q.option_c, q.option_d
+  select q.id, q.topic, q.question, q.option_a, q.option_b, q.option_c, q.option_d, q.image_path
   from public.questions q
   where q.unit_id = p_unit and q.is_active and auth.uid() is not null
     and (p_retry is null or q.id in (
@@ -257,9 +268,10 @@ language sql stable security definer set search_path = public as $$
   limit least(greatest(p_count, 1), 100);
 $$;
 
+drop function if exists public.submit_quiz(int, jsonb, boolean);
 create or replace function public.submit_quiz(p_unit int, p_answers jsonb, p_practice boolean default false)
 returns table (attempt_id uuid, score int, total int, percent int,
-               question_id uuid, topic text, question text, options text[], chosen smallint, correct smallint, explanation text)
+               question_id uuid, topic text, question text, options text[], chosen smallint, correct smallint, explanation text, image_path text)
 language plpgsql security definer set search_path = public as $$
 declare
   v_attempt uuid := gen_random_uuid();
@@ -276,6 +288,10 @@ begin
   from _ans a join public.questions q on q.id = a.qid and q.unit_id = p_unit;
 
   if v_total = 0 then raise exception 'No valid answers.'; end if;
+  -- ranked attempts must cover a full quiz, so a hand-picked 1-question submit can't score 100%
+  if not p_practice and v_total < least(25, (select count(*) from public.questions where unit_id = p_unit and is_active)) then
+    raise exception 'Incomplete quiz submission.';
+  end if;
   v_pct := round(v_score * 100.0 / v_total);
 
   insert into public.quiz_attempts (id, user_id, unit_id, score, total, percent, is_practice)
@@ -287,16 +303,17 @@ begin
 
   return query
   select v_attempt, v_score, v_total, v_pct, q.id, q.topic, q.question,
-         array[q.option_a, q.option_b, q.option_c, q.option_d], a.chosen, q.correct, q.explanation
+         array[q.option_a, q.option_b, q.option_c, q.option_d], a.chosen, q.correct, q.explanation, q.image_path
   from _ans a join public.questions q on q.id = a.qid and q.unit_id = p_unit;
 end $$;
 
+drop function if exists public.get_attempt(uuid);
 create or replace function public.get_attempt(p_attempt uuid)
 returns table (attempt_id uuid, unit_id int, score int, total int, percent int, is_practice boolean,
-               question_id uuid, topic text, question text, options text[], chosen smallint, correct smallint, explanation text)
+               question_id uuid, topic text, question text, options text[], chosen smallint, correct smallint, explanation text, image_path text)
 language sql stable security definer set search_path = public as $$
   select a.id, a.unit_id, a.score, a.total, a.percent, a.is_practice, q.id, q.topic, q.question,
-         array[q.option_a, q.option_b, q.option_c, q.option_d], aa.chosen, q.correct, q.explanation
+         array[q.option_a, q.option_b, q.option_c, q.option_d], aa.chosen, q.correct, q.explanation, q.image_path
   from public.quiz_attempts a
   join public.attempt_answers aa on aa.attempt_id = a.id
   join public.questions q on q.id = aa.question_id
@@ -408,6 +425,13 @@ $$;
 grant execute on function public.get_quiz, public.submit_quiz, public.get_attempt, public.unit_progress,
   public.get_leaderboard, public.admin_stats, public.admin_students, public.is_admin to authenticated;
 
+-- logged-out visitors can't call the RPCs at all (is_admin stays: the anon "subjects read" policy uses it)
+revoke execute on function public.get_quiz, public.submit_quiz, public.get_attempt, public.unit_progress,
+  public.get_leaderboard, public.admin_stats, public.admin_students from public, anon;
+-- trigger functions are never called directly
+revoke execute on function public.check_signup_email, public.handle_new_user, public.protect_profile
+  from public, anon, authenticated;
+
 insert into storage.buckets (id, name, public) values ('materials', 'materials', false)
 on conflict (id) do nothing;
 
@@ -415,7 +439,30 @@ drop policy if exists "materials read" on storage.objects;
 drop policy if exists "materials admin write" on storage.objects;
 drop policy if exists "materials admin update" on storage.objects;
 drop policy if exists "materials admin delete" on storage.objects;
-create policy "materials read" on storage.objects for select to authenticated using (bucket_id = 'materials');
+create policy "materials read" on storage.objects for select to authenticated using (
+  bucket_id = 'materials' and (public.is_admin()
+    or exists (select 1 from public.materials m where m.file_path = storage.objects.name and m.is_visible)));
 create policy "materials admin write"  on storage.objects for insert to authenticated with check (bucket_id = 'materials' and public.is_admin());
 create policy "materials admin update" on storage.objects for update to authenticated using (bucket_id = 'materials' and public.is_admin());
 create policy "materials admin delete" on storage.objects for delete to authenticated using (bucket_id = 'materials' and public.is_admin());
+
+-- quiz diagrams: private bucket, any logged-in student can view, only admin can change
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('quiz-images', 'quiz-images', false, 5242880, array['image/png','image/jpeg','image/webp','image/gif'])
+on conflict (id) do nothing;
+
+drop policy if exists "quiz images read" on storage.objects;
+drop policy if exists "quiz images admin write" on storage.objects;
+drop policy if exists "quiz images admin update" on storage.objects;
+drop policy if exists "quiz images admin delete" on storage.objects;
+create policy "quiz images read" on storage.objects for select to authenticated using (bucket_id = 'quiz-images');
+create policy "quiz images admin write"  on storage.objects for insert to authenticated with check (bucket_id = 'quiz-images' and public.is_admin());
+create policy "quiz images admin update" on storage.objects for update to authenticated using (bucket_id = 'quiz-images' and public.is_admin());
+create policy "quiz images admin delete" on storage.objects for delete to authenticated using (bucket_id = 'quiz-images' and public.is_admin());
+
+-- live announcement notifications (Realtime still applies the RLS rules above)
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'announcements') then
+    alter publication supabase_realtime add table public.announcements;
+  end if;
+end $$;

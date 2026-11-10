@@ -8,7 +8,7 @@ VIEWS.landing = () => {
   document.getElementById('app').innerHTML = `
   <header class="topbar"><div class="wrap">
     ${logoHTML('#landing')}
-    <nav aria-label="Sections"><a href="#how" data-scroll="how">How it works</a><a href="#inside" data-scroll="inside">What's inside</a></nav>
+    <nav aria-label="Sections"><a href="#how" data-scroll="how">How it works</a><a href="#inside" data-scroll="inside">What's inside</a><a href="#about">About</a></nav>
     <div class="actions">${switchHTML()}<a class="btn ghost sm login" href="#login">Log in</a><a class="btn sm" href="#signup">Sign up</a></div>
   </div></header>
   <main>
@@ -65,8 +65,99 @@ VIEWS.landing = () => {
       <a class="btn" href="#signup">Create your account</a>
     </div></section>
   </main>
-  <footer class="foot">SemPrep · made by Fawwaz for QISCET students</footer>`;
+  <footer class="foot">SemPrep · made by Fawwaz for QISCET students · <a href="#about">About SemPrep</a></footer>`;
   $$('[data-scroll]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); document.getElementById(a.dataset.scroll).scrollIntoView({ behavior: 'smooth' }); }));
+};
+
+/* ---------- about (public; also inside the app for logged-in students) ---------- */
+function aboutHTML() {
+  const inApp = !!S.session;
+  const cta = inApp
+    ? `<a class="btn" href="#home">Go to my units</a><a class="btn ghost" href="#mid2">Open Mid answers</a>`
+    : `<a class="btn" href="#signup">Sign up with your college email</a><a class="btn ghost" href="#login">I have an account</a>`;
+  return `
+  <article class="about">
+    <header class="about-hero">
+      <span class="chip">About SemPrep</span>
+      <h1>One place to prepare for every 3‑1 exam.</h1>
+      <p class="lead">SemPrep is a free study website for QISCET 3‑1 students. It brings together everything you need for the semester and Mid exams, unit by unit, so you spend your time studying instead of searching WhatsApp groups for the right PDF.</p>
+      <div class="cta">${cta}</div>
+    </header>
+
+    <section class="about-block">
+      <h2>Why SemPrep exists</h2>
+      <div class="about-text">
+        <p>Before every exam, the same thing happens: notes are scattered across groups and drives, nobody is sure which version is the right one, and there's no easy way to check whether you actually understood a unit.</p>
+        <p>SemPrep fixes that. Every subject of the semester (${SUBJECTS.map(s => s.code).join(', ')}) is split into its five units, and each unit has its notes, its short revision notes and its own quiz, all in one place.</p>
+      </div>
+    </section>
+
+    <section class="about-block">
+      <h2>How it helps for the semester exams</h2>
+      <div class="grid g2 about-grid">
+        <div class="card"><span class="about-ico">${icon('book', 22)}</span><h3>Unit-wise material</h3><p>The college notes and question banks for every unit, plus special short notes and cheat sheets made for quick revision before the exam.</p></div>
+        <div class="card"><span class="about-ico">${icon('quiz', 22)}</span><h3>A quiz for every unit</h3><p>25 questions in 15 minutes, with diagrams where the topic needs them. Every answer comes with a one-line explanation, so you learn from each mistake.</p></div>
+        <div class="card"><span class="about-ico">${icon('progress', 22)}</span><h3>Know your weak topics</h3><p>After each quiz you see which topics went wrong, and a "Revise my mistakes" round asks you only the questions you missed.</p></div>
+        <div class="card"><span class="about-ico">${icon('layers', 22)}</span><h3>See what's left</h3><p>Your syllabus map fills up as you read and pass units, so you always know exactly what's done and what still needs time.</p></div>
+        <div class="card"><span class="about-ico">${icon('expand', 22)}</span><h3>Read without distractions</h3><p>Read mode opens the notes full screen with page-by-page buttons, so you can focus on one page at a time.</p></div>
+        <div class="card"><span class="about-ico">${icon('clock', 22)}</span><h3>Exam countdown</h3><p>A countdown to the first exam is always at the top, so you can plan how many units to finish each day.</p></div>
+      </div>
+    </section>
+
+    <section class="about-block">
+      <h2>How it helps for the Mid exams and last-minute revision</h2>
+      <div class="grid g3 about-grid">
+        <div class="card dark"><h3>Mid answers</h3><p>Full answers to the important questions for Mid 1 and Mid 2, for every subject.</p></div>
+        <div class="card"><h3>2 marks answers</h3><p>Short, exam-ready answers for the 2-mark questions, so you can score the easy marks quickly.</p></div>
+        <div class="card gold on-gold"><h3>Mid bits</h3><p>The one-mark objective questions with their answers, ready for quick practice.</p></div>
+        <div class="card"><h3>Cheat sheets</h3><p>Formulas, definitions and key points for each subject on a page or two.</p></div>
+        <div class="card dark"><h3>Last minute revision sheets</h3><p>The must-know points to go through the night before and the morning of the exam.</p></div>
+      </div>
+    </section>
+
+    <section class="about-block">
+      <h2>A simple way to use it</h2>
+      <ol class="about-steps">
+        <li><span><b>Pick one unit a day.</b> Read the college material first, then the short notes.</span></li>
+        <li><span><b>Take that unit's quiz.</b> Read the explanation for every question you got wrong.</span></li>
+        <li><span><b>Revise your mistakes.</b> Retake only the questions you missed until they stick.</span></li>
+        <li><span><b>Before the exam,</b> go through the Mid answers, 2 marks answers, bits, cheat sheets and last minute revision sheets for each subject.</span></li>
+      </ol>
+    </section>
+
+    <section class="about-block">
+      <div class="card dark about-maker">
+        ${octoSVG('octo', false)}
+        <div>
+          <span class="chip dark">Made by</span>
+          <h2>Fawwaz</h2>
+          <p>Hi, I'm Fawwaz, a student at QISCET. I built SemPrep because I wanted one clear, organised place to prepare for our exams, and I thought every classmate deserved the same. I designed it, built it and keep adding the material.</p>
+          <p>If something is missing, wrong, or could be better, please tell me through the Feedback page. I read every message and keep improving SemPrep with your suggestions.</p>
+          ${inApp ? '<a class="btn" style="margin-top:14px" href="#feedback">Send feedback to Fawwaz</a>' : ''}
+        </div>
+      </div>
+    </section>
+
+    <section class="about-block">
+      <h2>Good to know</h2>
+      <div class="grid g3 about-grid">
+        <div class="card"><h3>Free for QISCET students</h3><p>Sign up with your @${DOMAIN} college email. There's nothing to pay.</p></div>
+        <div class="card"><h3>Works on your phone</h3><p>Use it in any browser, on a phone or a laptop. Your progress is saved to your account.</p></div>
+        <div class="card"><h3>View only</h3><p>Material can be read inside SemPrep but not downloaded, so it stays with QISCET students.</p></div>
+      </div>
+    </section>
+  </article>`;
+}
+VIEWS.about = () => {
+  if (S.session) { shell('about', aboutHTML()); return; }
+  document.getElementById('app').innerHTML = `
+  <header class="topbar"><div class="wrap">
+    ${logoHTML('#landing')}
+    <nav aria-label="Sections"><a href="#landing">Home</a><a href="#about" aria-current="page">About</a></nav>
+    <div class="actions">${switchHTML()}<a class="btn ghost sm login" href="#login">Log in</a><a class="btn sm" href="#signup">Sign up</a></div>
+  </div></header>
+  <main class="wrap about-public">${aboutHTML()}</main>
+  <footer class="foot">SemPrep · made by Fawwaz for QISCET students</footer>`;
 };
 
 /* ---------- shared pieces ---------- */
@@ -83,19 +174,36 @@ function pdfRowHTML(m, { dark = false } = {}) {
     <a class="btn sm ${dark ? '' : 'ghost'}" href="#reader/${m.id}">${btn}</a>
   </div>`;
 }
-async function fetchAnnouncements() {
-  const { data } = await sb.from('announcements').select('*').order('is_important', { ascending: false }).order('created_at', { ascending: false });
-  const today = new Date().toISOString().slice(0, 10);
-  return (data || []).filter(a => !a.is_hidden && (!a.end_date || a.end_date >= today));
+// Home-page announcement box (data + bell logic live in app.js)
+function annBoxHTML(showAll = false) {
+  const anns = S.anns || [];
+  const unseen = new Set(unseenAnns().map(a => a.id));
+  const shown = showAll ? anns : anns.slice(0, 3);
+  return `<section class="card ann-box" id="annbox" aria-labelledby="annbox-h">
+    <div class="ann-box-head">
+      <span class="ann-box-ico">${icon('megaphone', 22)}</span>
+      <div><h3 id="annbox-h">Announcements</h3><p class="small muted">${anns.length ? `${anns.length} active` : 'Updates from the admin show up here'}</p></div>
+      ${unseen.size ? `<span class="ann-newpill">${unseen.size} new</span>` : ''}
+      <span class="spacer"></span>
+      ${unseen.size ? '<button class="linkbtn small ann-markread" data-act="ann-read">Mark all read</button>' : ''}
+    </div>
+    ${anns.length ? `<div class="ann-list">${shown.map(a => annItemHTML(a, unseen)).join('')}</div>` : '<div class="ann-empty">No announcements right now. You will get a notification here when there is one.</div>'}
+    ${anns.length > 3 ? `<button class="linkbtn small ann-more" data-annall="${showAll ? 0 : 1}">${showAll ? 'Show less' : `Show all ${anns.length}`}</button>` : ''}
+  </section>`;
 }
-function annHTML(a) {
-  return `<div class="card ann ${a.is_important ? 'important' : ''}">${icon(a.is_important ? 'pin' : 'megaphone')}<div><h3>${esc(a.title)}</h3><p style="white-space:pre-line;margin-top:4px">${esc(a.message)}</p><p class="small muted" style="margin-top:6px">${a.is_important ? 'Pinned by admin · ' : ''}${fmtDate(a.created_at)}</p></div></div>`;
+function annBoxEl(showAll = false) {
+  const t = document.createElement('template'); t.innerHTML = annBoxHTML(showAll).trim();
+  const el = t.content.firstChild;
+  el.querySelector('[data-annall]')?.addEventListener('click', e => el.replaceWith(annBoxEl(e.currentTarget.dataset.annall === '1')));
+  return el;
 }
+// used by the Admin announcement preview
+function annHTML(a) { return `<div class="ann-box ann-preview"><div class="ann-list">${annItemHTML(a, new Set())}</div></div>`; }
 
 /* ---------- home ---------- */
 VIEWS.home = async (args, alive) => {
   const c = shell('home');
-  const [anns] = await Promise.all([fetchAnnouncements(), refreshProgress(), loadRank()]);
+  await Promise.all([loadAnnouncements(), refreshProgress(), loadRank()]);
   if (!alive()) return;
   shell('home'); // re-render sidebar with fresh progress
   const d = isDiwali();
@@ -124,13 +232,14 @@ VIEWS.home = async (args, alive) => {
       </aside>
     </section>
     <section class="stack" style="margin-top:22px">
+      <div id="annslot"></div>
       ${d ? `<div class="card greet">${octoSVG('octo', false)}<div><h3>Happy Diwali from SemPrep</h3><p class="muted" style="margin-top:4px">Take tonight off and celebrate. Your progress will be right here when you're back.</p></div></div>` : ''}
-      ${anns.map(annHTML).join('')}
       <div class="grid g2">
-        <div class="card"><h3>Mid answers and bits</h3><p class="muted">Full answers to the important Mid questions and one-mark bits for every subject.</p><a class="btn ghost" style="margin-top:16px" href="#mid2">Open Mid answers</a></div>
+        <div class="card"><h3>Exam-ready material</h3><p class="muted">Mid answers, 2 marks answers, Mid bits, cheat sheets and last minute revision sheets for every subject.</p><div class="row wrap" style="margin-top:16px;gap:8px">${EXAM_PAGES.map(x => `<a class="btn sm ghost" href="#${x.nav}">${x.label}</a>`).join('')}</div></div>
         <div class="card gold on-gold"><h3>Is SemPrep helping?</h3><p style="margin-top:6px">Tell Fawwaz what works and what should be added. It takes a minute.</p><a class="btn" style="margin-top:16px" href="#feedback">Give feedback</a></div>
       </div>
     </section>`;
+  $('#annslot').replaceWith(annBoxEl());
 };
 
 /* ---------- subject ---------- */
@@ -157,7 +266,7 @@ VIEWS.subject = async ([sid, unitNo], alive) => {
     <h2 style="margin:26px 0 14px;font-size:1.5rem">${esc(unitLabel(u))}</h2>
     <div class="grid g2">
       <section class="card"><h3>College material</h3><p class="muted small" style="margin-bottom:8px">Notes and question banks from the college</p>${list(college, false)}</section>
-      <section class="card dark special"><div class="row"><h3>Special material</h3><span class="tag-fawwaz">by Fawwaz</span></div><p class="small" style="color:var(--panel-muted);margin:6px 0 8px">Short notes and cheat sheets for revision</p>${list(special, true)}</section>
+      <section class="card dark special"><h3>Special material</h3><p class="small" style="color:var(--panel-muted);margin:6px 0 8px">Short notes and cheat sheets for revision</p>${list(special, true)}</section>
     </div>
     <section class="card quiz-band" style="margin-top:18px;--c:var(--s-${sid})">
       <div class="ring" style="--p:${st.best ?? 0};--c:var(--s-${sid})"><b>${st.best != null ? st.best + '%' : '—'}</b></div>
@@ -173,12 +282,14 @@ VIEWS.reader = async ([mid], alive) => {
   if (!m) { shell('', '<div class="empty">This PDF is not available.</div>'); return; }
   const u = m.unit_id ? unitById(m.unit_id) : null;
   const s = SUBJ[m.subject_id];
-  const back = u ? `#subject/${m.subject_id}/${u.unit_no}` : `#mid2/${m.subject_id}`;
-  const backLabel = u ? `Back to ${s.code} Unit ${u.unit_no}` : 'Back to Mid answers';
-  const nav = u ? '' : 'mid2';
+  const ep = EXAM_BY_SECTION[m.section] || EXAM_PAGES[0];
+  const back = u ? `#subject/${m.subject_id}/${u.unit_no}` : `#${ep.nav}/${m.subject_id}`;
+  const backLabel = u ? `Back to ${s.code} Unit ${u.unit_no}` : `Back to ${ep.label}`;
+  const nav = u ? '' : ep.nav;
   const c = shell(nav, `
     <a class="back row" href="${back}" style="text-decoration:none;font-weight:600;color:var(--text2);min-height:44px">${icon('back', 18)}${backLabel}</a>
-    <div class="page-head"><div><h1 style="font-size:clamp(1.5rem,3.4vw,2.2rem)">${esc(m.title)}</h1><p>${s.code} · ${u ? 'Unit ' + u.unit_no + ' · ' : ''}${SECTION_LABEL[m.section]}</p></div></div>
+    <div class="page-head"><div style="flex:1;min-width:0"><h1 style="font-size:clamp(1.5rem,3.4vw,2.2rem)">${esc(m.title)}</h1><p>${s.code} · ${u ? 'Unit ' + u.unit_no + ' · ' : ''}${SECTION_LABEL[m.section]}</p></div>
+      <button class="btn" type="button" id="rmBtn" title="Full screen, just the pages">${icon('expand', 18)}Read mode</button></div>
     <div class="reader">
       <div class="desk" id="desk"><div class="loading"><div class="spinner" aria-label="Loading PDF"></div></div></div>
       <aside class="card reader-side" id="rside"></aside>
@@ -186,7 +297,72 @@ VIEWS.reader = async ([mid], alive) => {
   const uid = S.session.user.id;
   const prev = S.reading[m.id];
   const seen = new Set(prev ? prev.pages_viewed : []);
-  let total = m.page_count || 0, saveT = null, dirty = false, doc = null, renderObs = null, seenObs = null;
+  let total = m.page_count || 0, saveT = null, dirty = false, doc = null, renderObs = null, seenObs = null, wraps = [];
+
+  /* --- read mode: full screen, only the pages, an exit button --- */
+  let reading = false, rmRaf = 0, rmStart = 1;
+  const curPage = () => {
+    const mid = innerHeight * 0.4; let p = 1;
+    for (const w of wraps) { if (w.getBoundingClientRect().top <= mid) p = Number(w.dataset.page); else break; }
+    return p;
+  };
+  const updateRmBar = () => {
+    const bar = $('.rm-bar'); if (!bar) return;
+    const pct = Math.min(100, Math.floor(seen.size * 100 / Math.max(total, 1)));
+    $('.rm-page', bar).textContent = `Page ${wraps.length ? curPage() : 1} of ${total || '…'}`;
+    $('.rm-pct', bar).textContent = `${pct}% read`;
+    $('.rm-fill', bar).style.width = pct + '%';
+  };
+  /* --- previous / next page (both normal view and read mode) --- */
+  const updatePager = () => {
+    const pg = $('#pager'); if (!pg) return;
+    const p = curPage();
+    $('.pager-num', pg).textContent = `${p} / ${total}`;
+    $('[data-pg="-1"]', pg).disabled = p <= 1;
+    $('[data-pg="1"]', pg).disabled = p >= total;
+  };
+  const onRmScroll = () => { cancelAnimationFrame(rmRaf); rmRaf = requestAnimationFrame(() => { updateRmBar(); updatePager(); }); };
+  const goPage = (p, smooth = false) => requestAnimationFrame(() => wraps[p - 1]?.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' }));
+  const stepPage = d => {
+    if (!wraps.length) return;
+    goPage(Math.min(total, Math.max(1, curPage() + d)), true);
+  };
+  const enterRead = () => {
+    if (reading) return;
+    const p = wraps.length ? curPage() : 1;
+    reading = true; rmStart = p;
+    document.body.classList.add('read-mode');
+    const bar = document.createElement('div');
+    bar.className = 'rm-bar'; bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-label', 'Read mode');
+    bar.innerHTML = `<div class="rm-title">${esc(m.title)}</div><span class="rm-page"></span><span class="rm-pct"></span>
+      <button class="btn sm rm-exit" type="button">${icon('x', 16)}Exit read mode</button><div class="rm-track"><i class="rm-fill"></i></div>`;
+    document.body.appendChild(bar);
+    $('.rm-exit', bar).onclick = () => exitRead();
+    document.documentElement.requestFullscreen?.().catch(() => {}); // works without it too
+    goPage(p); updateRmBar();
+    $('.rm-exit', bar).focus({ preventScroll: true });
+  };
+  const exitRead = (fromFullscreen = false) => {
+    if (!reading) return;
+    const p = wraps.length ? curPage() : 1;
+    reading = false;
+    $('.rm-bar')?.remove();
+    document.body.classList.remove('read-mode');
+    if (!fromFullscreen && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    goPage(p);
+    $('#rmBtn')?.focus({ preventScroll: true });
+  };
+  const onFsChange = () => {
+    if (!reading) return;
+    if (document.fullscreenElement) goPage(rmStart); // layout changed when fullscreen kicked in
+    else exitRead(true);                             // Esc / browser exit also leaves read mode
+  };
+  const onRmKey = e => {
+    if (e.key === 'Escape' && reading) { e.preventDefault(); exitRead(); return; }
+    if (e.target.closest?.('input,textarea,select') || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); stepPage(1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); stepPage(-1); }
+  };
 
   const drawSide = () => {
     const n = Math.max(total, 1);
@@ -195,6 +371,7 @@ VIEWS.reader = async ([mid], alive) => {
       <div class="page-grid" aria-hidden="true">${Array.from({ length: total }, (_, i) => `<i class="${seen.has(i + 1) ? 'on' : ''}"></i>`).join('')}</div>
       ${u ? `<a class="btn block" style="margin-top:18px" href="#quiz/${u.id}">Take the Unit ${u.unit_no} quiz</a>` : ''}
       <p class="small muted" style="margin-top:14px">View only. Your name is on every page.</p>`;
+    updateRmBar();
   };
   const save = async () => {
     if (!dirty) return; dirty = false;
@@ -211,8 +388,17 @@ VIEWS.reader = async ([mid], alive) => {
   const noCtx = e => { if (e.target.closest('#desk')) e.preventDefault(); };
   document.addEventListener('keydown', block);
   document.addEventListener('contextmenu', noCtx);
+  document.addEventListener('keydown', onRmKey);
+  document.addEventListener('fullscreenchange', onFsChange);
   window.addEventListener('pagehide', save);
+  window.addEventListener('scroll', onRmScroll, { passive: true });
+  $('#rmBtn').onclick = enterRead;
   S.cleanup = () => {
+    exitRead();
+    window.removeEventListener('scroll', onRmScroll);
+    $('#pager')?.remove();
+    document.removeEventListener('keydown', onRmKey);
+    document.removeEventListener('fullscreenchange', onFsChange);
     clearTimeout(saveT); save();
     document.removeEventListener('keydown', block);
     document.removeEventListener('contextmenu', noCtx);
@@ -225,7 +411,8 @@ VIEWS.reader = async ([mid], alive) => {
   if (!alive()) return;
   if (error || !signed) { $('#desk').innerHTML = '<div class="empty" style="color:#ccc">Could not open this PDF. Try again in a moment.</div>'; return; }
   try {
-    doc = await pdfjsLib.getDocument({ url: signed.signedUrl, disableAutoFetch: false }).promise;
+    // fetch only the byte ranges of pages being viewed (saves Supabase egress); falls back to a full download if ranges aren't supported
+    doc = await pdfjsLib.getDocument({ url: signed.signedUrl, disableAutoFetch: true, disableStream: true, rangeChunkSize: 262144 }).promise;
   } catch (e) { if (alive()) $('#desk').innerHTML = '<div class="empty" style="color:#ccc">Could not load this PDF.</div>'; return; }
   if (!alive()) { doc.destroy(); return; }
   total = doc.numPages;
@@ -235,7 +422,6 @@ VIEWS.reader = async ([mid], alive) => {
   const wm = `<div class="wm"><div>${Array.from({ length: 36 }, () => `<span>${esc(label)}</span>`).join('')}</div></div>`;
   const first = await doc.getPage(1);
   const vp1 = first.getViewport({ scale: 1 });
-  const wraps = [];
   for (let i = 1; i <= total; i++) {
     const w = document.createElement('div');
     w.className = 'page-wrap'; w.dataset.page = i;
@@ -271,8 +457,29 @@ VIEWS.reader = async ([mid], alive) => {
     }
   }), { threshold: [0, .1, .2, .3, .4, .5, .6, .8, 1] });
   wraps.forEach(w => { renderObs.observe(w); seenObs.observe(w); });
+  if (total > 1) {
+    const pg = document.createElement('nav');
+    pg.id = 'pager'; pg.className = 'pager'; pg.setAttribute('aria-label', 'Pages');
+    pg.innerHTML = `<button class="pager-btn" type="button" data-pg="-1" aria-label="Previous page">${icon('back', 18)}<span>Previous</span></button>
+      <span class="pager-num" aria-live="polite">1 / ${total}</span>
+      <button class="pager-btn" type="button" data-pg="1" aria-label="Next page"><span>Next</span>${icon('next', 18)}</button>`;
+    document.body.appendChild(pg);
+    $$('[data-pg]', pg).forEach(b => b.onclick = () => stepPage(Number(b.dataset.pg)));
+    updatePager();
+  }
   if (total && (!m.page_count || m.page_count !== total) && isAdmin()) sb.from('materials').update({ page_count: total }).eq('id', m.id);
 };
+
+/* ---------- quiz diagrams (private bucket → short-lived signed URLs) ---------- */
+async function signQuizImages(paths) {
+  const list = [...new Set((paths || []).filter(Boolean))];
+  if (!list.length) return {};
+  const { data } = await sb.storage.from('quiz-images').createSignedUrls(list, 3600);
+  return Object.fromEntries((data || []).filter(x => x.signedUrl).map(x => [x.path, x.signedUrl]));
+}
+function qImgHTML(url) {
+  return url ? `<figure class="qimg"><a href="${esc(url)}" target="_blank" rel="noopener" title="Open full size"><img src="${esc(url)}" alt="Diagram for this question" loading="lazy"></a></figure>` : '';
+}
 
 /* ---------- quiz ---------- */
 function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
@@ -289,6 +496,8 @@ VIEWS.quiz = async ([unitId, mode, attemptId], alive) => {
     $('#content').innerHTML = `<div class="card" style="max-width:640px;margin:0 auto;text-align:center">${octoSVG('octo')}<h2>${practice ? 'Nothing to revise' : 'No questions yet'}</h2><p class="muted" style="margin:8px 0 18px">${practice ? 'You got every question right in that attempt.' : `The ${s.code} Unit ${u.unit_no} quiz isn't ready yet. Check back soon.`}</p><a class="btn" href="#subject/${u.subject_id}/${u.unit_no}">Back to Unit ${u.unit_no}</a></div>`;
     return;
   }
+  const imgs = await signQuizImages(data.map(q => q.image_path));
+  if (!alive()) return;
   const qs = data.map(q => ({ ...q, opts: [q.option_a, q.option_b, q.option_c, q.option_d], order: shuffle([0, 1, 2, 3]) }));
   const ans = {}; let cur = 0, submitting = false;
   const endAt = Date.now() + QUIZ_MINUTES * 60000;
@@ -306,6 +515,7 @@ VIEWS.quiz = async ([unitId, mode, attemptId], alive) => {
       <div class="card">
         <span class="chip">${esc(q.topic)}</span>
         <p class="qtext">${esc(q.question)}</p>
+        ${qImgHTML(imgs[q.image_path])}
         <div class="opts" role="radiogroup" aria-label="Options">${q.order.map((orig, i) => `<button type="button" role="radio" aria-checked="${ans[q.id] === orig}" class="opt ${ans[q.id] === orig ? 'sel' : ''}" data-o="${orig}"><span class="k">${'ABCD'[i]}</span><span>${esc(q.opts[orig])}</span></button>`).join('')}</div>
       </div>
       <div class="quiz-nav">
@@ -383,6 +593,8 @@ VIEWS.result = async ([attemptId], alive) => {
     const r0 = data[0];
     R = { attemptId, unitId: r0.unit_id, score: r0.score, total: r0.total, percent: r0.percent, practice: r0.is_practice, items: data };
   }
+  const imgs = await signQuizImages(R.items.map(x => x.image_path));
+  if (!alive()) return;
   const u = unitById(R.unitId); const s = SUBJ[u?.subject_id] || SUBJECTS[0];
   const wrong = R.items.filter(x => x.chosen !== x.correct).length;
   const head = R.percent >= 80 ? 'Strong unit. Keep it fresh with a retake later.' : R.percent >= 50 ? 'Good base — the weak topics below are where your marks are.' : 'Reread the weak topics, then try again.';
@@ -394,6 +606,7 @@ VIEWS.result = async ([attemptId], alive) => {
     const ok = x.chosen === x.correct;
     return `<div class="answer"><div class="row"><span class="mark ${ok ? 'ok' : 'no'}" aria-label="${ok ? 'Correct' : 'Wrong'}">${icon(ok ? 'check' : 'x', 16)}</span><b>Q${i + 1}</b><span class="chip">${esc(x.topic)}</span></div>
       <p class="q">${esc(x.question)}</p>
+      ${qImgHTML(imgs[x.image_path])}
       <p class="small">Your answer: <span class="yours ${ok ? '' : 'wrong'}">${x.chosen == null ? 'Skipped' : `${L[x.chosen]}. ${esc(x.options[x.chosen])}`}</span></p>
       ${ok ? '' : `<p class="small right">Correct answer: ${L[x.correct]}. ${esc(x.options[x.correct])}</p>`}
       ${x.explanation ? `<p class="why">Why: ${esc(x.explanation)}</p>` : ''}</div>`;
@@ -485,28 +698,24 @@ VIEWS.leaderboard = async ([tab], alive) => {
 };
 
 /* ---------- Mid answers ---------- */
-VIEWS.mid2 = ([tab]) => {
+// Subject-level exam material pages: one page per EXAM_PAGES entry (Mid answers, 2 marks, Mid bits, cheat sheets, last minute)
+function examMatPage(pg, tab) {
   const sid = SUBJ[tab] ? tab : 'ml';
   const s = SUBJ[sid];
-  const card = (section, kind) => {
-    const m = visibleMats({ subject_id: sid, section })[0];
-    const dark = kind === 'Answers';
-    const r = m && S.reading[m.id]; const pct = m ? matPct(m) : 0;
-    const label = !r ? `Open ${kind.toLowerCase()}` : pct >= 100 ? 'Read again' : 'Continue reading';
-    return `<section class="card mid-card ${dark ? 'dark' : 'gold on-gold'}">
-      <h2 style="font-size:1.6rem">${kind}</h2>
-      <p style="${dark ? 'color:var(--panel-muted)' : ''}">${dark ? 'Full answers to the important Mid questions.' : 'One-mark objective questions with answers.'}</p>
-      ${m ? `<div class="pdf-row" style="--c:${dark ? 'var(--hl)' : '#17142B'}"><span class="pdf-ico">${icon('pdf', 22)}</span><div class="info"><b>${esc(m.title)}</b><small style="${dark ? '' : 'color:#46425C'}">${m.page_count} pages${r ? ` · ${Math.min(r.pages_viewed.length, m.page_count)} of ${m.page_count} read` : ' · not opened'}</small>${r ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ''}</div></div>
-      <a class="btn" style="align-self:flex-start;margin-top:auto" href="#reader/${m.id}">${label}</a>`
-      : `<div class="empty" style="${dark ? 'border-color:var(--panel-line);color:var(--panel-muted)' : 'border-color:rgba(23,20,43,.3);color:#46425C'}">The ${s.code} ${kind.toLowerCase()} PDF isn't up yet. It will appear here as soon as it's added.</div>`}
-    </section>`;
-  };
-  shell('mid2', `
-    <div class="page-head"><div><h1 style="font-size:clamp(1.8rem,4vw,2.6rem)">Mid answers</h1><p>Answers and bits for the Mid exam, per subject.</p></div></div>
-    <div class="tabs scroll" style="margin-bottom:16px">${SUBJECTS.map(x => `<button class="tab ${x.id === sid ? 'on' : ''}" data-go="#mid2/${x.id}">${x.code}</button>`).join('')}</div>
+  const ms = visibleMats({ subject_id: sid, section: pg.section })
+    .sort((a, b) => a.sort_order - b.sort_order || a.title.localeCompare(b.title, 'en', { numeric: true }));
+  const dark = pg.cls === 'dark';
+  shell(pg.nav, `
+    <div class="page-head"><div><h1 style="font-size:clamp(1.8rem,4vw,2.6rem)">${pg.label}</h1><p>${pg.intro}</p></div></div>
+    <div class="tabs scroll" style="margin-bottom:16px">${SUBJECTS.map(x => `<button class="tab ${x.id === sid ? 'on' : ''}" data-go="#${pg.nav}/${x.id}">${x.code}</button>`).join('')}</div>
     <h2 style="font-size:1.3rem;margin-bottom:14px"><span class="code-${sid}">${s.code}</span> · ${s.name}</h2>
-    <div class="grid g2">${card('mid_answers', 'Answers')}${card('mid_bits', 'Bits')}</div>`);
-};
+    <div class="mid-grid"><section class="card mid-card ${pg.cls}" style="--c:var(--s-${sid})">
+      <div><h2 style="font-size:1.5rem">${pg.label}</h2><p class="mid-blurb">${pg.blurb}</p></div>
+      ${ms.length ? `<div class="mid-list">${ms.map(m => pdfRowHTML(m, { dark })).join('')}</div>`
+        : `<div class="empty mid-empty">No ${s.code} ${pg.label.toLowerCase()} yet. They'll appear here as soon as they're added.</div>`}
+    </section></div>`);
+}
+EXAM_PAGES.forEach(pg => { VIEWS[pg.nav] = ([tab]) => examMatPage(pg, tab); });
 
 /* ---------- feedback ---------- */
 VIEWS.feedback = async (args, alive) => {

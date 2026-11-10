@@ -14,7 +14,26 @@ const SUBJECTS = [
   { id: 'edvc', code: 'EDVC', name: 'Entrepreneurship Development and Venture Creation' }
 ];
 const SUBJ = Object.fromEntries(SUBJECTS.map(s => [s.id, s]));
-const SECTION_LABEL = { college: 'College material', special: 'Special material', mid_answers: 'Mid answers', mid_bits: 'Mid bits' };
+// Subject-level exam material: one entry = one sidebar page + one Admin upload type
+const EXAM_PAGES = [
+  { nav: 'mid2', section: 'mid_answers', label: 'Mid answers', short: 'Mid', icon: 'book', cls: 'dark',
+    intro: 'Full answers for Mid 1 and Mid 2, per subject.', blurb: 'Full answers to the important Mid questions.',
+    titles: ['Mid 1 answers', 'Mid 2 answers'] },
+  { nav: 'twomarks', section: 'two_marks', label: '2 marks answers', short: '2 marks', icon: 'pdf', cls: 'accent',
+    intro: 'Short answers for the 2-mark questions, per subject.', blurb: 'Quick, exam-ready answers for every 2-mark question.',
+    titles: ['2 marks · Units 1–2', '2 marks · Units 3–5', '2 marks · All units'] },
+  { nav: 'midbits', section: 'mid_bits', label: 'Mid bits', short: 'Bits', icon: 'quiz', cls: 'gold on-gold',
+    intro: 'One-mark objective questions with answers, for Mid 1 and Mid 2.', blurb: 'One-mark objective questions with answers.',
+    titles: ['Mid 1 bits', 'Mid 2 bits'] },
+  { nav: 'cheats', section: 'cheat_sheets', label: 'Cheat sheets', short: 'Cheats', icon: 'layers', cls: 'accent',
+    intro: 'Formulas, definitions and key points on a page or two, per subject.', blurb: 'Formulas, definitions and key points at a glance.',
+    titles: ['Formulas & definitions', 'Units 1–2 cheat sheet', 'Units 3–5 cheat sheet', 'All units cheat sheet'] },
+  { nav: 'lastmin', section: 'last_minute', label: 'Last minute revision sheets', short: 'Revision', icon: 'clock', cls: 'dark',
+    intro: 'The most important points to go through just before the exam.', blurb: 'The must-know points for the night before and the morning of the exam.',
+    titles: ['Last minute revision', 'Night-before revision', 'Important questions'] }
+];
+const EXAM_BY_SECTION = Object.fromEntries(EXAM_PAGES.map(x => [x.section, x]));
+const SECTION_LABEL = { college: 'College material', special: 'Special material', ...Object.fromEntries(EXAM_PAGES.map(x => [x.section, x.label])) };
 
 const sb = (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase)
   ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { flowType: 'implicit', persistSession: true, detectSessionInUrl: true } })
@@ -24,11 +43,11 @@ if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.clo
 
 const S = {
   session: null, profile: null, festiveOffered: true,
-  units: [], materials: [], reading: {}, progress: {}, myRank: null,
+  units: [], materials: [], reading: {}, progress: {}, myRank: null, anns: [],
   cleanup: null, lastResult: null, authNotice: null, recovery: false
 };
 const VIEWS = {};
-const PUBLIC = new Set(['landing', 'login', 'signup', 'forgot', 'newpass', 'inbox']);
+const PUBLIC = new Set(['landing', 'about', 'login', 'signup', 'forgot', 'newpass', 'inbox']);
 
 /* ---------- helpers ---------- */
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -92,7 +111,45 @@ async function loadSettings() {
   const { data } = await sb.from('app_settings').select('key,value');
   const f = (data || []).find(r => r.key === 'festive_offered');
   S.festiveOffered = f ? f.value !== false : true;
+  const ex = (data || []).find(r => r.key === 'exam_countdown');
+  S.exam = ex && ex.value && typeof ex.value === 'object' ? ex.value : null;
 }
+
+/* ---------- semester exam countdown (set in Admin → Overview) ---------- */
+// S.exam = { label, at: ISO start, end: 'YYYY-MM-DD' | null, show: bool }
+function examPhase(now = Date.now()) {
+  const e = S.exam;
+  if (!e || !e.show || !e.at) return null;
+  const start = new Date(e.at).getTime();
+  if (isNaN(start)) return null;
+  if (now < start) return { phase: 'before', left: start - now, start };
+  const end = e.end ? new Date(e.end + 'T23:59:59').getTime() : start + 30 * 86400000;
+  return now <= end ? { phase: 'during', start } : null;
+}
+function examBarHTML() {
+  const p = examPhase();
+  if (!p) return '';
+  const label = esc(S.exam.label || 'Semester exams');
+  const when = new Date(p.start).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  if (p.phase === 'during') return `<section class="exam-bar during" role="status"><span class="exam-ico">${icon('trophy', 22)}</span><div class="exam-txt"><b>${label} are on</b><span>All the best. Revise smart, sleep well.</span></div></section>`;
+  const tile = (k, l) => `<div class="cd-tile"><b data-cd="${k}">--</b><span>${l}</span></div>`;
+  return `<section class="exam-bar ${p.left < 7 * 86400000 ? 'soon' : ''}" aria-label="${label} countdown">
+    <span class="exam-ico">${icon('clock', 22)}</span>
+    <div class="exam-txt"><b>${label} begin in</b><span>${when}</span></div>
+    <div class="cd" aria-live="off">${tile('d', 'Days')}${tile('h', 'Hours')}${tile('m', 'Min')}${tile('s', 'Sec')}</div>
+  </section>`;
+}
+function tickExamBar() {
+  const bar = $('.exam-bar'); if (!bar) return;
+  const p = examPhase();
+  if (!p || (p.phase === 'during') !== bar.classList.contains('during')) { bar.outerHTML = examBarHTML(); return; }
+  if (p.phase !== 'before') return;
+  const t = Math.floor(p.left / 1000);
+  const v = { d: Math.floor(t / 86400), h: Math.floor(t / 3600) % 24, m: Math.floor(t / 60) % 60, s: t % 60 };
+  for (const k in v) { const el = $(`[data-cd="${k}"]`, bar); if (el) el.textContent = k === 'd' ? v[k] : String(v[k]).padStart(2, '0'); }
+  bar.classList.toggle('soon', p.left < 7 * 86400000);
+}
+setInterval(tickExamBar, 1000);
 async function loadCore() {
   const uid = S.session.user.id;
   const [prof, units, mats, reading] = await Promise.all([
@@ -105,8 +162,96 @@ async function loadCore() {
   S.units = units.data || [];
   S.materials = mats.data || [];
   S.reading = Object.fromEntries((reading.data || []).map(r => [r.material_id, r]));
-  await refreshProgress();
+  await Promise.all([refreshProgress(), loadAnnouncements()]);
+  watchAnnouncements();
 }
+
+/* ---------- announcements + notification bell ---------- */
+async function loadAnnouncements() {
+  const { data } = await sb.from('announcements').select('*').order('is_important', { ascending: false }).order('created_at', { ascending: false });
+  const today = new Date().toISOString().slice(0, 10);
+  S.anns = (data || []).filter(a => !a.is_hidden && (!a.end_date || a.end_date >= today));
+  updateBell();
+  return S.anns;
+}
+// "seen" is a per-device convenience, so localStorage is fine here (wrapped: it can be blocked)
+const seenKey = () => 'semprep.seenAnn.' + (S.session?.user.id || '');
+function seenAnns() { try { return new Set(JSON.parse(localStorage.getItem(seenKey()) || '[]')); } catch { return new Set(); } }
+function unseenAnns() { const s = seenAnns(); return (S.anns || []).filter(a => !s.has(a.id)); }
+function markAnnsSeen() {
+  try { localStorage.setItem(seenKey(), JSON.stringify((S.anns || []).map(a => a.id))); } catch {}
+  updateBell();
+  $$('.ann-item.new').forEach(x => x.classList.remove('new'));
+  $$('.ann-newpill, .ann-markread').forEach(x => x.remove());
+}
+function bellHTML() {
+  const n = unseenAnns().length;
+  return `<button class="bell" type="button" data-act="bell" aria-haspopup="dialog" aria-label="Announcements${n ? `, ${n} new` : ''}">${icon('bell', 22)}<span class="bell-badge" ${n ? '' : 'hidden'}>${n > 9 ? '9+' : n}</span></button>`;
+}
+function updateBell() {
+  const n = unseenAnns().length;
+  $$('.bell').forEach(b => {
+    b.setAttribute('aria-label', `Announcements${n ? `, ${n} new` : ''}`);
+    const badge = $('.bell-badge', b); badge.textContent = n > 9 ? '9+' : n; badge.hidden = !n;
+  });
+}
+function fmtAgo(d) {
+  const s = (Date.now() - new Date(d)) / 1000;
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  if (s < 7 * 86400) { const n = Math.floor(s / 86400); return n === 1 ? 'yesterday' : `${n} days ago`; }
+  return fmtDate(d);
+}
+function annItemHTML(a, unseen) {
+  return `<article class="ann-item ${a.is_important ? 'important' : ''} ${unseen.has(a.id) ? 'new' : ''}">
+    <span class="ann-ico">${icon(a.is_important ? 'pin' : 'megaphone', 18)}</span>
+    <div class="ann-body">
+      <div class="ann-title"><h4>${esc(a.title)}</h4>${a.is_important ? '<span class="ann-tag">Pinned</span>' : ''}<span class="ann-dot" aria-label="New"></span></div>
+      <p>${esc(a.message)}</p>
+      <time datetime="${esc(String(a.created_at))}">${fmtAgo(a.created_at)}${a.end_date ? ` · until ${fmtDate(a.end_date)}` : ''}</time>
+    </div></article>`;
+}
+function closeBell() { $('.notif-pop')?.remove(); $$('.bell').forEach(b => b.setAttribute('aria-expanded', 'false')); }
+function toggleBell(btn) {
+  if ($('.notif-pop')) return closeBell();
+  const unseen = new Set(unseenAnns().map(a => a.id));
+  markAnnsSeen(); // clears the badge; the panel below still highlights what was new
+  const pop = document.createElement('div');
+  pop.className = 'notif-pop'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Announcements');
+  pop.innerHTML = `<div class="notif-head"><b>Announcements</b><button class="linkbtn small" data-act="bell-close">Close</button></div>
+    <div class="notif-list">${(S.anns || []).length ? S.anns.map(a => annItemHTML(a, unseen)).join('') : '<p class="muted small notif-empty">No announcements right now.</p>'}</div>`;
+  document.body.appendChild(pop);
+  const r = btn.getBoundingClientRect();
+  if (innerWidth > 860) { pop.style.left = Math.min(r.left, innerWidth - pop.offsetWidth - 16) + 'px'; pop.style.top = (r.bottom + 8) + 'px'; }
+  btn.setAttribute('aria-expanded', 'true');
+}
+function closeMore() { $('.more-sheet')?.remove(); }
+function openMore() {
+  if ($('.more-sheet')) return closeMore();
+  const nav = NAV.concat(isAdmin() ? [{ id: 'admin', label: 'Admin', short: 'Admin', icon: 'shield' }] : []);
+  const cur = parseHash().name;
+  const el = document.createElement('div');
+  el.className = 'more-sheet'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'All pages');
+  el.innerHTML = `<div class="more-panel"><div class="more-head"><b>All pages</b><button class="linkbtn small" data-act="more-close">Close</button></div>
+    <nav class="more-list">${nav.map(n => `<a href="#${n.id}" class="${n.id === cur ? 'on' : ''}">${icon(n.icon, 20)}<span>${n.label}</span></a>`).join('')}</nav></div>`;
+  document.body.appendChild(el);
+  el.addEventListener('click', e => { if (e.target === el || e.target.closest('a,[data-act="more-close"]')) closeMore(); });
+}
+let annChannel = null;
+function watchAnnouncements() {
+  if (annChannel || !sb) return;
+  annChannel = sb.channel('announcements')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, async () => {
+      const before = new Set((S.anns || []).map(a => a.id));
+      await loadAnnouncements();
+      const fresh = S.anns.filter(a => !before.has(a.id));
+      if (fresh.length) toast(`New announcement: ${fresh[0].title}`);
+      if (location.hash === '#home' || location.hash === '') $('#annbox')?.replaceWith(annBoxEl());
+    })
+    .subscribe();
+}
+function stopWatchingAnnouncements() { if (annChannel) { sb.removeChannel(annChannel); annChannel = null; } }
 async function refreshProgress() {
   if (!S.session) return;
   const { data } = await sb.rpc('unit_progress', { p_user: S.session.user.id });
@@ -210,8 +355,9 @@ const NAV = [
   { id: 'home', label: 'Home', short: 'Home', icon: 'home' },
   { id: 'perf', label: 'My progress', short: 'Progress', icon: 'progress' },
   { id: 'leaderboard', label: 'Leaderboard', short: 'Ranks', icon: 'trophy' },
-  { id: 'mid2', label: 'Mid answers', short: 'Mid', icon: 'book' },
-  { id: 'feedback', label: 'Feedback', short: 'Feedback', icon: 'chat' }
+  ...EXAM_PAGES.map(x => ({ id: x.nav, label: x.label, short: x.short, icon: x.icon })),
+  { id: 'feedback', label: 'Feedback', short: 'Feedback', icon: 'chat' },
+  { id: 'about', label: 'About SemPrep', short: 'About', icon: 'info' }
 ];
 function shell(active, inner) {
   const p = S.profile || {};
@@ -220,12 +366,15 @@ function shell(active, inner) {
     const us = unitsOf(s.id); const read = us.filter(u => unitState(u).state === 'done').length;
     return `<a class="side-subj" href="#subject/${s.id}/1" style="--c:var(--s-${s.id})"><div class="top"><b style="color:var(--c)">${s.code}</b><span>${read}/5 read</span></div><div class="segs">${[1, 2, 3, 4, 5].map(n => { const u = us.find(x => x.unit_no === n); const st = u ? unitState(u).state : 'none'; return `<i class="${st === 'done' ? 'on' : st === 'part' ? 'half' : ''}"></i>`; }).join('')}</div></a>`;
   }).join('');
-  const tabs = (isAdmin() ? nav.filter(n => n.id !== 'feedback') : nav).slice(0, 5);
+  // phone tab bar: 4 main pages + "More", which lists every page
+  const main4 = isAdmin() ? ['home', 'mid2', 'perf', 'admin'] : ['home', 'perf', 'leaderboard', 'mid2'];
+  const tabs = main4.map(id => nav.find(n => n.id === id)).filter(Boolean);
+  const moreOn = !!active && !main4.includes(active);
   const meta = [p.batch, p.branch].filter(Boolean).join(' · ') || (isAdmin() ? 'Admin' : '');
   document.getElementById('app').innerHTML = `
   <div class="shell">
     <aside class="side" aria-label="Main">
-      ${logoHTML('#home')}
+      <div class="side-head">${logoHTML('#home')}${bellHTML()}</div>
       <nav class="nav">${nav.map(n => `<a href="#${n.id}" class="${n.id === active ? 'on' : ''}" ${n.id === active ? 'aria-current="page"' : ''}>${icon(n.icon)}${n.label}</a>`).join('')}</nav>
       <div><h4>Your subjects</h4>${subj}</div>
       <div class="user">
@@ -234,18 +383,19 @@ function shell(active, inner) {
         <button class="logout" data-act="logout">${icon('logout')}Log out</button>
       </div>
     </aside>
-    <header class="mtop">${logoHTML('#home')}<span class="spacer"></span>${switchHTML(true)}<button class="logout" data-act="logout" aria-label="Log out">${icon('logout')}</button></header>
+    <header class="mtop">${logoHTML('#home')}<span class="spacer"></span>${bellHTML()}${switchHTML(true)}<button class="logout" data-act="logout" aria-label="Log out">${icon('logout')}</button></header>
     <div class="main">
       <div class="toran" aria-hidden="true"></div>
+      ${examBarHTML()}
       <main class="content" id="content">${inner || '<div class="loading"><div class="spinner" aria-label="Loading"></div></div>'}</main>
     </div>
-    <nav class="tabbar" aria-label="Main">${tabs.map(n => `<a href="#${n.id}" class="${n.id === active ? 'on' : ''}">${icon(n.icon, 22)}${n.short}</a>`).join('')}</nav>
+    <nav class="tabbar" aria-label="Main">${tabs.map(n => `<a href="#${n.id}" class="${n.id === active ? 'on' : ''}">${icon(n.icon, 22)}${n.short}</a>`).join('')}<button type="button" class="${moreOn ? 'on' : ''}" data-act="more" aria-haspopup="dialog">${icon('menu', 22)}More</button></nav>
   </div>`;
+  tickExamBar();
   return $('#content');
 }
 
 /* ---------- auth ---------- */
-const USERNAME_RE = /^[A-Za-z0-9_.]{3,20}$/;
 function isCollegeEmail(e) { e = e.trim().toLowerCase(); return e.endsWith('@' + DOMAIN) && e.split('@')[0].length > 0; }
 function redirectURL() { return location.origin + location.pathname; }
 
@@ -281,7 +431,7 @@ VIEWS.signup = () => {
     <h1>Create your account</h1>
     <p class="sub">Use your <b>@${DOMAIN}</b> email. We'll send a link to verify it.</p>
     <form id="f" novalidate>
-      <label class="field"><span>Username</span><input class="input" name="username" autocomplete="username" required maxlength="20" placeholder="e.g. fawwaz_05"><small>3–20 letters, numbers, _ or .</small></label>
+      <label class="field"><span>Username</span><input class="input" name="username" autocomplete="username" required placeholder="e.g. fawwaz_05"></label>
       <label class="field"><span>College email</span><input class="input" name="email" type="email" autocomplete="email" required placeholder="24491A055E@${DOMAIN}"></label>
       <label class="field"><span>Password</span><input class="input" name="password" type="password" autocomplete="new-password" required minlength="8"><small>At least 8 characters</small></label>
       <button class="btn block" type="submit">Create account</button>
@@ -291,7 +441,7 @@ VIEWS.signup = () => {
   f.addEventListener('submit', async e => {
     e.preventDefault();
     const username = f.username.value.trim(), email = f.email.value.trim().toLowerCase(), password = f.password.value;
-    if (!USERNAME_RE.test(username)) return showFormError(f, 'Username must be 3–20 letters, numbers, _ or .');
+    if (!username) return showFormError(f, 'Enter a username.');
     if (!isCollegeEmail(email)) return showFormError(f, `Please use your college email (@${DOMAIN}).`);
     if (password.length < 8) return showFormError(f, 'Password must be at least 8 characters.');
     if (!needSb()) return;
@@ -416,20 +566,31 @@ VIEWS.newpass = () => {
 };
 
 async function logout() {
+  closeBell(); if (sb) stopWatchingAnnouncements();
   if (sb) await sb.auth.signOut();
-  S.session = null; S.profile = null; S.progress = {}; S.reading = {};
+  S.anns = []; S.session = null; S.profile = null; S.progress = {}; S.reading = {};
   go('#landing');
 }
 
 /* ---------- global events ---------- */
 document.addEventListener('click', e => {
+  if ($('.notif-pop') && !e.target.closest('.notif-pop,.bell')) closeBell();
   const t = e.target.closest('[data-act],[data-go]');
   if (!t) return;
+  if (t.dataset.act === 'bell') return toggleBell(t);
+  if (t.dataset.act === 'more') return openMore();
+  if (t.dataset.act === 'bell-close') return closeBell();
+  if (t.dataset.act === 'ann-read') return markAnnsSeen();
   if (t.dataset.go) { e.preventDefault(); go(t.dataset.go); return; }
   if (t.dataset.act === 'diwali') toggleDiwali();
   if (t.dataset.act === 'logout') logout();
 });
-window.addEventListener('hashchange', route);
+window.addEventListener('hashchange', () => { closeBell(); closeMore(); route(); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if ($('.notif-pop')) { closeBell(); $('.bell')?.focus(); }
+  if ($('.more-sheet')) closeMore();
+});
 
 /* ---------- boot ---------- */
 async function boot() {
