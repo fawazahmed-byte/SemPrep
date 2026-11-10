@@ -132,6 +132,17 @@ body.diwali .card.dark { border-color: var(--panel-line); }
 .input, select.input, textarea.input { width: 100%; min-height: 48px; padding: 11px 14px; border-radius: var(--r-md); border: 1.5px solid var(--line); background: var(--card); color: var(--text); }
 textarea.input { min-height: 110px; resize: vertical; }
 .pw-wrap { position: relative; }
+.input.readonly { display: flex; align-items: center; color: var(--text2); background: var(--bg); overflow-wrap: anywhere; }
+.profile-grid { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 18px; align-items: start; max-width: 1000px; }
+.profile-card { text-align: center; display: grid; justify-items: center; gap: 2px; }
+.profile-card h2 { font-size: 1.5rem; margin-top: 12px; overflow-wrap: anywhere; }
+.profile-card .muted { overflow-wrap: anywhere; }
+.avatar.big { width: 84px; height: 84px; font-size: 2.2rem; border-radius: 26px; }
+.profile-facts { width: 100%; margin: 18px 0 0; display: grid; gap: 0; text-align: left; }
+.profile-facts div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.profile-facts dt { color: var(--muted); font-size: .9rem; }
+.profile-facts dd { margin: 0; font-weight: 700; text-align: right; overflow-wrap: anywhere; }
+@media (max-width: 860px) { .profile-grid { grid-template-columns: 1fr; } }
 .pw-wrap .input { padding-right: 52px; }
 .pw-toggle { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; display: grid; place-items: center;
   border: 0; border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer; }
@@ -283,7 +294,8 @@ body.diwali .side { border-right: 1px solid var(--panel-line); }
 .segs i.half { background: linear-gradient(to right, var(--c) 50%, rgba(255,255,255,.12) 50%); }
 .side .user { margin-top: auto; border-top: 1px solid var(--panel-line); padding: 16px 8px 0; display: grid; gap: 8px; }
 .avatar { width: 40px; height: 40px; border-radius: 12px; background: var(--hl); color: var(--hl-ink); display: grid; place-items: center; font-family: var(--font-h); font-weight: 800; font-size: 1.1rem; flex: none; }
-.side .user .who { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.side .user .who { display: flex; gap: 10px; align-items: center; min-width: 0; color: inherit; text-decoration: none; border-radius: 12px; padding: 4px; margin: -4px; }
+.side .user a.who:hover { background: var(--panel2); }
 .side .user .who div { min-width: 0; }
 .side .user .who b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side .user .who small { color: var(--panel-muted); }
@@ -610,6 +622,7 @@ body:not(.diwali) .lb-row.top .rank { color: var(--ink); }
   .pager { left: 50%; bottom: 84px; }
   .pager-btn span { display: none; }
   .pager-btn { padding: 0 14px; }
+  .mtop-avatar { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: var(--hl); color: var(--hl-ink); font-weight: 800; text-decoration: none; margin-left: 4px; }
   .mtop .logout { background: none; border: 0; color: var(--panel-muted); width: 44px; height: 44px; display: grid; place-items: center; }
   .tabbar { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; bottom: 0; left: 0; right: 0; z-index: 30; background: var(--panel); border-top: 1px solid var(--panel-line); padding-bottom: env(safe-area-inset-bottom); }
   .tabbar a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 60px; text-decoration: none; color: var(--panel-muted); font-size: .72rem; font-weight: 700; }

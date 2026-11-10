@@ -35,9 +35,16 @@ const EXAM_PAGES = [
 const EXAM_BY_SECTION = Object.fromEntries(EXAM_PAGES.map(x => [x.section, x]));
 const SECTION_LABEL = { college: 'College material', special: 'Special material', ...Object.fromEntries(EXAM_PAGES.map(x => [x.section, x.label])) };
 
+// supabase-js reads the tokens in an email link and wipes them from the address bar as soon as the
+// client is created, so note the link type (recovery / signup / error) first.
+const BOOT_HASH = location.hash;
+const BOOT_LINK = new URLSearchParams(BOOT_HASH.replace(/^#/, ''));
+const IS_RECOVERY_LINK = BOOT_LINK.get('type') === 'recovery';
+let recoveryEvent = false; // set if supabase-js reports PASSWORD_RECOVERY
 const sb = (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase)
   ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { flowType: 'implicit', persistSession: true, detectSessionInUrl: true } })
   : null;
+if (sb) sb.auth.onAuthStateChange(event => { if (event === 'PASSWORD_RECOVERY') recoveryEvent = true; });
 
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -357,6 +364,7 @@ const NAV = [
   { id: 'leaderboard', label: 'Leaderboard', short: 'Ranks', icon: 'trophy' },
   ...EXAM_PAGES.map(x => ({ id: x.nav, label: x.label, short: x.short, icon: x.icon })),
   { id: 'feedback', label: 'Feedback', short: 'Feedback', icon: 'chat' },
+  { id: 'profile', label: 'My profile', short: 'Profile', icon: 'user' },
   { id: 'about', label: 'About SemPrep', short: 'About', icon: 'info' }
 ];
 function shell(active, inner) {
@@ -378,12 +386,12 @@ function shell(active, inner) {
       <nav class="nav">${nav.map(n => `<a href="#${n.id}" class="${n.id === active ? 'on' : ''}" ${n.id === active ? 'aria-current="page"' : ''}>${icon(n.icon)}${n.label}</a>`).join('')}</nav>
       <div><h4>Your subjects</h4>${subj}</div>
       <div class="user">
-        <div class="who"><div class="avatar">${esc((p.username || '?')[0].toUpperCase())}</div><div><b>${esc(p.username)}</b><small>${esc(meta)}</small></div></div>
+        <a class="who" href="#profile" title="My profile"><div class="avatar">${esc((p.username || '?')[0].toUpperCase())}</div><div><b>${esc(p.username)}</b><small>${esc(meta)}</small></div></a>
         ${switchHTML()}
         <button class="logout" data-act="logout">${icon('logout')}Log out</button>
       </div>
     </aside>
-    <header class="mtop">${logoHTML('#home')}<span class="spacer"></span>${bellHTML()}${switchHTML(true)}<button class="logout" data-act="logout" aria-label="Log out">${icon('logout')}</button></header>
+    <header class="mtop">${logoHTML('#home')}<span class="spacer"></span>${bellHTML()}${switchHTML(true)}<a class="mtop-avatar" href="#profile" aria-label="My profile">${esc((p.username || '?')[0].toUpperCase())}</a></header>
     <div class="main">
       <div class="toran" aria-hidden="true"></div>
       ${examBarHTML()}
@@ -622,18 +630,28 @@ document.addEventListener('keydown', e => {
 
 /* ---------- boot ---------- */
 async function boot() {
-  const hashErr = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const hashErr = BOOT_LINK;
   if (hashErr.get('error')) {
     S.authNotice = { bad: true, msg: /expired|invalid/i.test(hashErr.get('error_description') || '') ? 'That link has expired. Log in, or ask for a new link.' : (hashErr.get('error_description') || 'That link did not work.').replace(/\+/g, ' ') };
     history.replaceState(null, '', '#login');
   }
   if (!sb) { await route(); return; }
   await loadSettings();
-  const isRecoveryLink = /type=recovery/.test(location.hash);
+  const isRecoveryLink = IS_RECOVERY_LINK || recoveryEvent;
   const { data } = await sb.auth.getSession();
   S.session = data.session;
-  if (isRecoveryLink) S.recovery = true;
-  if (S.session) { await loadCore(); if (/access_token/.test(location.hash)) history.replaceState(null, '', S.recovery ? '#newpass' : '#home'); }
+  if (isRecoveryLink || recoveryEvent) S.recovery = true;
+  if (S.session) {
+    await loadCore();
+    if (S.recovery) history.replaceState(null, '', '#newpass');               // reset link → set a new password first
+    else if (/access_token/.test(BOOT_HASH)) history.replaceState(null, '', '#home');
+  }
+  else if (/access_token/.test(location.hash)) {
+    // the link's token was rejected (already used or expired): don't leave a blank page
+    S.authNotice = { bad: true, msg: S.recovery ? 'That reset link has expired or was already used. Tap "Forgot password?" to get a new one.' : 'That link has expired or was already used. Log in, or ask for a new link.' };
+    history.replaceState(null, '', '#login');
+    S.recovery = false;
+  }
   sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'PASSWORD_RECOVERY') { S.recovery = true; S.session = session; history.replaceState(null, '', '#newpass'); route(); return; }
     if (event === 'SIGNED_IN' && !S.session && session) {

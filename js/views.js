@@ -717,6 +717,99 @@ function examMatPage(pg, tab) {
 }
 EXAM_PAGES.forEach(pg => { VIEWS[pg.nav] = ([tab]) => examMatPage(pg, tab); });
 
+/* ---------- my profile ---------- */
+VIEWS.profile = async (args, alive) => {
+  shell('profile');
+  const u = S.session.user;
+  const { data: prof } = await sb.from('profiles').select('*').eq('id', u.id).maybeSingle();
+  if (!alive()) return;
+  if (prof) S.profile = prof;
+  const p = S.profile || {};
+  shell('profile', `
+    <div class="page-head"><div><h1 style="font-size:clamp(1.8rem,4vw,2.6rem)">My profile</h1><p>Your account details. You can change your username and password here.</p></div></div>
+    <div class="profile-grid">
+      <section class="card profile-card">
+        <div class="avatar big">${esc((p.username || '?')[0].toUpperCase())}</div>
+        <h2>${esc(p.username || '')}</h2>
+        <p class="muted">${esc(p.email || u.email)}</p>
+        ${p.role === 'admin' ? '<span class="pill good" style="margin-top:8px">Admin</span>' : ''}
+        <dl class="profile-facts">
+          ${p.roll_no ? `<div><dt>Roll number</dt><dd>${esc(p.roll_no)}</dd></div>` : ''}
+          ${p.branch ? `<div><dt>Branch</dt><dd>${esc(p.branch)}</dd></div>` : ''}
+          ${p.batch ? `<div><dt>Batch</dt><dd>${esc(p.batch)}</dd></div>` : ''}
+          <div><dt>Joined</dt><dd>${fmtDate(u.created_at)} ${new Date(u.created_at).getFullYear()}</dd></div>
+        </dl>
+        <button class="btn ghost block" data-act="logout" style="margin-top:18px">${icon('logout', 18)}Log out</button>
+      </section>
+      <div class="stack">
+        <section class="card">
+          <h3>Username</h3>
+          <p class="muted small" style="margin-top:4px">Shown on the leaderboard and around SemPrep.</p>
+          <form id="unf" class="stack-sm" style="margin-top:12px" novalidate>
+            <label class="field"><span>Username</span><input class="input" name="username" maxlength="40" required value="${esc(p.username || '')}" autocomplete="username"></label>
+            <button class="btn" type="submit">Save username</button>
+          </form>
+        </section>
+        <section class="card">
+          <h3>Email</h3>
+          <p class="muted small" style="margin-top:4px">Your account is linked to your college email, so it can't be changed here. If it's wrong, ask the admin.</p>
+          <div class="input readonly" style="margin-top:12px" aria-label="Email">${esc(p.email || u.email)}</div>
+        </section>
+        <section class="card">
+          <h3>Password</h3>
+          <p class="muted small" style="margin-top:4px">For your safety, passwords are stored encrypted and can't be shown to anyone, not even the admin. You can set a new one here.</p>
+          <form id="pwf" class="stack-sm" style="margin-top:12px" novalidate>
+            <label class="field"><span>Current password</span><input class="input" name="cur" type="password" autocomplete="current-password" required></label>
+            <label class="field"><span>New password</span><input class="input" name="p1" type="password" autocomplete="new-password" minlength="8" required><small>At least 8 characters</small></label>
+            <label class="field"><span>Repeat new password</span><input class="input" name="p2" type="password" autocomplete="new-password" required></label>
+            <button class="btn" type="submit">Change password</button>
+          </form>
+          <p class="small muted" style="margin-top:12px">Forgot your current password? <a href="#" id="pwreset">Email me a reset link</a></p>
+        </section>
+      </div>
+    </div>`);
+  addPasswordToggles($('#content'));
+
+  const unf = $('#unf');
+  unf.onsubmit = async e => {
+    e.preventDefault();
+    const name = unf.username.value.trim();
+    if (!name) return showFormError(unf, 'Enter a username.');
+    if (name === p.username) return toast('That is already your username.');
+    const btn = $('button[type=submit]', unf); setBusy(btn, true, 'Saving…');
+    const { data, error } = await sb.from('profiles').update({ username: name }).eq('id', u.id).select().maybeSingle();
+    setBusy(btn, false);
+    if (error) return showFormError(unf, error.code === '23505' ? 'That username is already taken. Try another one.' : error.message);
+    if (data) S.profile = data;
+    toast('Username updated.'); route();
+  };
+
+  const pwf = $('#pwf');
+  pwf.onsubmit = async e => {
+    e.preventDefault();
+    const email = p.email || u.email;
+    if (!pwf.cur.value) return showFormError(pwf, 'Enter your current password.');
+    if (pwf.p1.value.length < 8) return showFormError(pwf, 'The new password must be at least 8 characters.');
+    if (pwf.p1.value !== pwf.p2.value) return showFormError(pwf, "The two new passwords don't match.");
+    if (pwf.p1.value === pwf.cur.value) return showFormError(pwf, 'The new password is the same as the current one.');
+    const btn = $('button[type=submit]', pwf); setBusy(btn, true, 'Checking…');
+    const chk = await sb.auth.signInWithPassword({ email, password: pwf.cur.value }); // confirms it's really you
+    if (chk.error) { setBusy(btn, false); return showFormError(pwf, 'Your current password is not correct.'); }
+    btn.textContent = 'Saving…';
+    const { error } = await sb.auth.updateUser({ password: pwf.p1.value });
+    setBusy(btn, false);
+    if (error) return showFormError(pwf, /same/i.test(error.message) ? 'The new password must be different from the current one.' : error.message);
+    pwf.reset(); $('.form-error', pwf)?.remove();
+    toast('Password changed. Use the new one next time you log in.');
+  };
+
+  $('#pwreset').onclick = async e => {
+    e.preventDefault();
+    const { error } = await sb.auth.resetPasswordForEmail(p.email || u.email, { redirectTo: redirectURL() });
+    toast(error ? (/rate/i.test(error.message) ? 'Please wait a minute before asking again.' : error.message) : `Reset link sent to ${p.email || u.email}. Check Spam too.`, !!error);
+  };
+};
+
 /* ---------- feedback ---------- */
 VIEWS.feedback = async (args, alive) => {
   shell('feedback');
