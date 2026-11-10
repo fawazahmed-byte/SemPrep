@@ -349,6 +349,7 @@ VIEWS.reader = async ([mid], alive) => {
     $('.rm-exit', bar).onclick = () => exitRead();
     document.documentElement.requestFullscreen?.().catch(() => {}); // works without it too
     goPage(p); updateRmBar();
+    window.dispatchEvent(new Event('resize')); // pages are wider now: redraw them sharp
     $('.rm-exit', bar).focus({ preventScroll: true });
   };
   const exitRead = (fromFullscreen = false) => {
@@ -359,6 +360,7 @@ VIEWS.reader = async ([mid], alive) => {
     document.body.classList.remove('read-mode');
     if (!fromFullscreen && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
     goPage(p);
+    window.dispatchEvent(new Event('resize'));
     $('#rmBtn')?.focus({ preventScroll: true });
   };
   const onFsChange = () => {
@@ -505,6 +507,21 @@ VIEWS.reader = async ([mid], alive) => {
     }
   }), { threshold: [0, .1, .2, .3, .4, .5, .6, .8, 1] });
   wraps.forEach(w => { renderObs.observe(w); seenObs.observe(w); });
+  // redraw sharply whenever the page width changes (read mode, fullscreen, rotating a phone, resizing)
+  let resizeT = 0;
+  const redrawIfResized = () => {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    rendering.clear();
+    wraps.forEach(w => {
+      const c = w.querySelector('canvas');
+      if (c && Math.abs(c.width - Math.min(w.clientWidth * dpr, 4096)) < 4) return; // already sharp
+      renderObs.unobserve(w); renderObs.observe(w);
+    });
+  };
+  const onResize = () => { clearTimeout(resizeT); resizeT = setTimeout(redrawIfResized, 250); };
+  window.addEventListener('resize', onResize);
+  const cleanupResize = S.cleanup;
+  S.cleanup = () => { window.removeEventListener('resize', onResize); clearTimeout(resizeT); cleanupResize && cleanupResize(); };
   {
     const pg = document.createElement('nav');
     pg.id = 'pager'; pg.className = 'pager'; pg.setAttribute('aria-label', 'Pages and zoom');
