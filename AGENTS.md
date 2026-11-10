@@ -81,4 +81,4 @@ Open the folder in VS Code → right-click `index.html` → **Open with Live Ser
 
 ## 8. Deploy
 
-Run `bash deploy.sh` (needs a one-time `npx wrangler login`). It runs `build.sh` and uploads `dist/` to the Cloudflare Pages project `qiscet-semprep` → https://qiscet-semprep.pages.dev. Pushing to GitHub does not deploy by itself (docs/, supabase/, AGENTS.md, README.md are never published). Routing is hash-based, so no server rewrites are needed. The keep-alive workflow needs the repo secrets `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
+Run `bash deploy.sh` (needs a one-time `npx wrangler login`). It runs `build.sh` and uploads `dist/` to the Cloudflare Pages project `qiscet-semprep` → https://qiscet-semprep.pages.dev. Pushing to GitHub does not deploy by itself (docs/, supabase/, AGENTS.md, README.md are never published). Routing is hash-based, so no server rewrites are needed. The keep-alive workflow reads the Supabase URL and anon key from `js/config.js`; it runs daily from the default branch (`main`).

@@ -172,7 +172,7 @@ Test: sign up with a second college email and check that the email arrives (also
 | Realtime concurrent connections | 200 | Each open SemPrep tab = 1. Above 200, live bell updates stop for extra users; the site still works |
 | Realtime messages | 2 million | Plenty |
 | Auth emails | 30/hour by default with custom SMTP (raise it) | Plan around exam-week signup rush |
-| Inactivity pause | Paused after 7 days of no activity | The GitHub "Supabase keep-alive" workflow pings it daily |
+| Inactivity pause | Paused after 7 days of no activity | The GitHub "Supabase keep-alive" workflow pings it daily (09:00 IST; reads js/config.js, no secrets needed). Check it under GitHub → Actions |
 | Backups | Daily, not downloadable on Free | Export important tables yourself (see K) |
 
 When a free limit is exceeded Supabase emails you and gives a grace period; after that, requests can be restricted. **Pro plan ($25/month)** raises egress to 250 GB, removes pausing and adds support.

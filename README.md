@@ -11,7 +11,7 @@ Study site for QISCET 3-1 students: unit material (view-only PDF reader), a quiz
 2. Put the Project URL and **anon** key in `js/config.js` (never the service_role key).
 3. Supabase → Authentication: Email provider on, Confirm email on, min password 8. Add the admin user (Add user → Auto Confirm). Set up custom SMTP (docs/BACKEND.md §H).
 4. URL configuration: Site URL = `https://qiscet-semprep.pages.dev`; Redirect URLs = that URL, `http://localhost:5500`, `http://127.0.0.1:5500`.
-5. GitHub secrets (for the daily keep-alive workflow): `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
+5. The daily keep-alive workflow reads the URL and anon key from `js/config.js` (no GitHub secrets needed). The repo's default branch must be `main`.
 
 ## Documentation
 - [AGENTS.md](AGENTS.md): how the project is organised (start here, also for AI tools)
