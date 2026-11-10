@@ -1,9 +1,7 @@
-// Cloudflare Workers config: serve the static site built by build.sh (dist/).
-// Cloudflare build settings: Build command "bash build.sh", Deploy command "npx wrangler deploy".
+// Cloudflare Pages config: the site lives at https://qiscet-semprep.pages.dev
+// Deploy with:  bash deploy.sh   (builds dist/ with build.sh, then uploads it)
 {
-  "name": "semprep",
-  "compatibility_date": "2025-09-01",
-  "assets": {
-    "directory": "./dist"
-  }
+  "name": "qiscet-semprep",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2025-09-01"
 }

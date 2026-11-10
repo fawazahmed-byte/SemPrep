@@ -8,6 +8,7 @@ Everything about how SemPrep's backend is built, how it works, and where to look
 
 | Item | Value |
 |---|---|
+| Live website | **https://qiscet-semprep.pages.dev** (Cloudflare Pages, deploy with `bash deploy.sh`) |
 | Supabase project name | **Semprep** |
 | Project ref / ID | `mmaljrfahdhbkiovnnlm` |
 | Project URL (API) | `https://mmaljrfahdhbkiovnnlm.supabase.co` |
@@ -135,8 +136,8 @@ Two CHECK constraints enforce this (`materials_section_check`, `materials_check`
 |---|---|
 | Sign In / Providers → Email | **On**, **Confirm email on**, minimum password length 8 |
 | Phone, social logins, anonymous sign-ins | Off |
-| URL Configuration → Site URL | Your live site URL (the `semprep.<your-name>.workers.dev` address from Cloudflare) |
-| URL Configuration → Redirect URLs | The live URL, `http://localhost:5500`, `http://127.0.0.1:5500` |
+| URL Configuration → Site URL | Your live site URL `https://qiscet-semprep.pages.dev` |
+| URL Configuration → Redirect URLs | `https://qiscet-semprep.pages.dev`, `http://localhost:5500`, `http://127.0.0.1:5500` |
 | **Emails → SMTP Settings** | **Custom SMTP must be set up before launch** (see H) |
 | Rate Limits → emails per hour | Raise to ~100–200 after custom SMTP is set up (default 30) |
 | Leaked password protection | Turn on if your plan offers it (Advisors warns about it) |
