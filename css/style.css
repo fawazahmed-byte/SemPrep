@@ -131,6 +131,12 @@ body.diwali .card.dark { border-color: var(--panel-line); }
 .field small { display: block; color: var(--muted); margin-top: 4px; font-size: .82rem; }
 .input, select.input, textarea.input { width: 100%; min-height: 48px; padding: 11px 14px; border-radius: var(--r-md); border: 1.5px solid var(--line); background: var(--card); color: var(--text); }
 textarea.input { min-height: 110px; resize: vertical; }
+.pw-wrap { position: relative; }
+.pw-wrap .input { padding-right: 52px; }
+.pw-toggle { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; display: grid; place-items: center;
+  border: 0; border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer; }
+.pw-toggle:hover, .pw-toggle[aria-pressed="true"] { color: var(--text); }
+.pw-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .input:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent); }
 .form-error { background: var(--bad-bg); color: var(--bad); padding: 10px 14px; border-radius: var(--r-sm); font-weight: 600; font-size: .92rem; }
 .form-ok { background: var(--good-bg); color: var(--good); padding: 10px 14px; border-radius: var(--r-sm); font-weight: 600; font-size: .92rem; }

@@ -415,6 +415,34 @@ function authLayout(formHTML) {
       <div class="auth-form">${formHTML}</div>
     </section>
   </div>`;
+  addPasswordToggles(document.getElementById('app'));
+}
+// Eye button on every password box: tap to show what you typed, tap again to hide it
+function addPasswordToggles(root) {
+  $$('input[type="password"]', root).forEach(inp => {
+    if (inp.parentElement.classList.contains('pw-wrap')) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'pw-wrap';
+    inp.before(wrap); wrap.appendChild(inp);
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'pw-toggle';
+    const set = shown => {
+      inp.type = shown ? 'text' : 'password';
+      btn.setAttribute('aria-pressed', String(shown));
+      btn.setAttribute('aria-label', shown ? 'Hide password' : 'Show password');
+      btn.title = shown ? 'Hide password' : 'Show password';
+      btn.innerHTML = icon(shown ? 'eyeOff' : 'eye', 20);
+    };
+    set(false);
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      const pos = inp.selectionStart;
+      set(inp.type === 'password');
+      inp.focus({ preventScroll: true });
+      try { inp.setSelectionRange(pos, pos); } catch {}
+    });
+    wrap.appendChild(btn);
+  });
 }
 function showFormError(form, msg, extraHTML = '') {
   let box = $('.form-error', form);
