@@ -332,6 +332,8 @@ body.diwali .rangoli { display: block; position: absolute !important; width: 220
 .exam-bar::after { content: ''; position: absolute; inset: auto 0 0 0; height: 3px; background: linear-gradient(90deg, var(--s-ml), var(--s-ai), var(--s-flat), var(--s-cnp), var(--s-edvc)); }
 .exam-bar > * { position: relative; }
 .exam-bar.soon { --acc: #FF6B4A; }
+.exam-edit { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,.18); color: var(--panel-text); text-decoration: none; font-weight: 700; font-size: .9rem; }
+.exam-edit:hover { background: rgba(255,255,255,.08); }
 .exam-bar.during { --acc: #3DDC84; }
 .exam-ico { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; background: var(--acc); color: #17142B; flex: none; }
 .exam-bar.soon .exam-ico { animation: pulse 2s ease-in-out infinite; }

@@ -137,13 +137,14 @@ function examBarHTML() {
   const p = examPhase();
   if (!p) return '';
   const label = esc(S.exam.label || 'Semester exams');
+  const editBtn = isAdmin() ? `<a class="exam-edit" href="#admin/overview" title="Change the exam date and time">${icon('edit', 16)}Edit</a>` : '';
   const when = new Date(p.start).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
-  if (p.phase === 'during') return `<section class="exam-bar during" role="status"><span class="exam-ico">${icon('trophy', 22)}</span><div class="exam-txt"><b>${label} are on</b><span>All the best. Revise smart, sleep well.</span></div></section>`;
+  if (p.phase === 'during') return `<section class="exam-bar during" role="status"><span class="exam-ico">${icon('trophy', 22)}</span><div class="exam-txt"><b>${label} are on</b><span>All the best. Revise smart, sleep well.</span></div>${editBtn}</section>`;
   const tile = (k, l) => `<div class="cd-tile"><b data-cd="${k}">--</b><span>${l}</span></div>`;
   return `<section class="exam-bar ${p.left < 7 * 86400000 ? 'soon' : ''}" aria-label="${label} countdown">
     <span class="exam-ico">${icon('clock', 22)}</span>
     <div class="exam-txt"><b>${label} begin in</b><span>${when}</span></div>
-    <div class="cd" aria-live="off">${tile('d', 'Days')}${tile('h', 'Hours')}${tile('m', 'Min')}${tile('s', 'Sec')}</div>
+    <div class="cd" aria-live="off">${tile('d', 'Days')}${tile('h', 'Hours')}${tile('m', 'Min')}${tile('s', 'Sec')}</div>${editBtn}
   </section>`;
 }
 function tickExamBar() {
