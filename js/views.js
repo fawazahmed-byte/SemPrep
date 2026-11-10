@@ -317,9 +317,18 @@ VIEWS.reader = async ([mid], alive) => {
   const updatePager = () => {
     const pg = $('#pager'); if (!pg) return;
     const p = curPage();
-    $('.pager-num', pg).textContent = `${p} / ${total}`;
-    $('[data-pg="-1"]', pg).disabled = p <= 1;
-    $('[data-pg="1"]', pg).disabled = p >= total;
+    if ($('.pager-num', pg)) {
+      $('.pager-num', pg).textContent = `${p} / ${total}`;
+      $('[data-pg="-1"]', pg).disabled = p <= 1;
+      $('[data-pg="1"]', pg).disabled = p >= total;
+    }
+    const zv = $('.pager-zv', pg);
+    if (zv) {
+      const z = Number(getComputedStyle($('#desk') || document.body).getPropertyValue('--zoom')) || 1;
+      zv.textContent = Math.round(z * 100) + '%';
+      $('[data-z="-1"]', pg).disabled = z <= 1;
+      $('[data-z="1"]', pg).disabled = z >= 3;
+    }
   };
   const onRmScroll = () => { cancelAnimationFrame(rmRaf); rmRaf = requestAnimationFrame(() => { updateRmBar(); updatePager(); }); };
   const goPage = (p, smooth = false) => requestAnimationFrame(() => wraps[p - 1]?.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' }));
@@ -438,15 +447,54 @@ VIEWS.reader = async ([mid], alive) => {
       const vp0 = page.getViewport({ scale: 1 });
       w.style.aspectRatio = `${vp0.width} / ${vp0.height}`;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const scale = (w.clientWidth * dpr) / vp0.width;
+      const scale = Math.min(w.clientWidth * dpr, 4096) / vp0.width; // sharp at any zoom, capped for memory
       const vp = page.getViewport({ scale });
       const cv = document.createElement('canvas');
       cv.width = Math.floor(vp.width); cv.height = Math.floor(vp.height);
       cv.setAttribute('aria-label', `Page ${i}`);
+      const z = zoom;
       await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+      if (z !== zoom) { rendering.delete(i); return; }         // zoom changed while drawing: it will be redrawn
+      w.querySelector('canvas')?.remove();
       w.prepend(cv);
     } catch (e) { rendering.delete(i); }
   };
+
+  /* --- zoom: pages are redrawn sharply at each level (browser zoom would only stretch the image) --- */
+  const ZOOMS = [1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+  let zoom = 1;
+  const setZoom = next => {
+    next = Math.min(3, Math.max(1, next));
+    if (next === zoom || !wraps.length) return;
+    // keep the same spot of the same page in view
+    const p = curPage(), w0 = wraps[p - 1], r0 = w0.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (innerHeight * 0.4 - r0.top) / r0.height));
+    zoom = next;
+    desk.style.setProperty('--zoom', zoom);
+    desk.classList.toggle('zoomed', zoom > 1);
+    const r1 = w0.getBoundingClientRect();
+    scrollBy(0, r1.top + ratio * r1.height - innerHeight * 0.4);
+    desk.scrollLeft = (desk.scrollWidth - desk.clientWidth) / 2;
+    rendering.clear();
+    wraps.forEach(w => { renderObs.unobserve(w); renderObs.observe(w); }); // redraw (visible pages first)
+    updatePager();
+  };
+  const stepZoom = d => {
+    if (d === 0) return setZoom(1);
+    const i = ZOOMS.findIndex(z => z >= zoom - 0.001);
+    setZoom(ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, (i < 0 ? 0 : i) + d))]);
+  };
+  const onWheelZoom = e => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); stepZoom(e.deltaY < 0 ? 1 : -1); } };
+  const onZoomKey = e => {
+    if (e.target.closest?.('input,textarea,select') || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === '+' || e.key === '=') { e.preventDefault(); stepZoom(1); }
+    else if (e.key === '-' || e.key === '_') { e.preventDefault(); stepZoom(-1); }
+    else if (e.key === '0') { e.preventDefault(); stepZoom(0); }
+  };
+  desk.addEventListener('wheel', onWheelZoom, { passive: false });
+  document.addEventListener('keydown', onZoomKey);
+  const cleanupBefore = S.cleanup;
+  S.cleanup = () => { document.removeEventListener('keydown', onZoomKey); cleanupBefore && cleanupBefore(); };
   renderObs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { renderPage(e.target); renderObs.unobserve(e.target); } }), { rootMargin: '1200px 0px' });
   seenObs = new IntersectionObserver(es => es.forEach(e => {
     if (!e.isIntersecting) return;
@@ -457,14 +505,19 @@ VIEWS.reader = async ([mid], alive) => {
     }
   }), { threshold: [0, .1, .2, .3, .4, .5, .6, .8, 1] });
   wraps.forEach(w => { renderObs.observe(w); seenObs.observe(w); });
-  if (total > 1) {
+  {
     const pg = document.createElement('nav');
-    pg.id = 'pager'; pg.className = 'pager'; pg.setAttribute('aria-label', 'Pages');
-    pg.innerHTML = `<button class="pager-btn" type="button" data-pg="-1" aria-label="Previous page">${icon('back', 18)}<span>Previous</span></button>
+    pg.id = 'pager'; pg.className = 'pager'; pg.setAttribute('aria-label', 'Pages and zoom');
+    pg.innerHTML = (total > 1 ? `<button class="pager-btn" type="button" data-pg="-1" aria-label="Previous page">${icon('back', 18)}<span>Previous</span></button>
       <span class="pager-num" aria-live="polite">1 / ${total}</span>
-      <button class="pager-btn" type="button" data-pg="1" aria-label="Next page"><span>Next</span>${icon('next', 18)}</button>`;
+      <button class="pager-btn" type="button" data-pg="1" aria-label="Next page"><span>Next</span>${icon('next', 18)}</button>
+      <span class="pager-sep" aria-hidden="true"></span>` : '') +
+      `<button class="pager-z" type="button" data-z="-1" aria-label="Zoom out" title="Zoom out (-)">${icon('minus', 18)}</button>
+      <button class="pager-zv" type="button" data-z="0" aria-label="Zoom level, tap to fit width" title="Fit width (0)">100%</button>
+      <button class="pager-z" type="button" data-z="1" aria-label="Zoom in" title="Zoom in (+)">${icon('plus', 18)}</button>`;
     document.body.appendChild(pg);
     $$('[data-pg]', pg).forEach(b => b.onclick = () => stepPage(Number(b.dataset.pg)));
+    $$('[data-z]', pg).forEach(b => b.onclick = () => stepZoom(Number(b.dataset.z)));
     updatePager();
   }
   if (total && (!m.page_count || m.page_count !== total) && isAdmin()) sb.from('materials').update({ page_count: total }).eq('id', m.id);
