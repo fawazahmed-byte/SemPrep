@@ -466,3 +466,173 @@ do $$ begin
     alter publication supabase_realtime add table public.announcements;
   end if;
 end $$;
+
+-- =====================================================================
+-- Senin AI (doubt chatbot). The Edge Function supabase/functions/senin calls Gemini;
+-- the GEMINI_API_KEY lives only in Supabase → Edge Functions → Secrets.
+-- =====================================================================
+
+-- text of every PDF page, read in the admin's browser (pdf.js) so Senin can answer from the material
+create table if not exists public.material_pages (
+  material_id uuid not null references public.materials(id) on delete cascade,
+  page_no int not null check (page_no >= 1),
+  content text not null default '',
+  fts tsvector generated always as (to_tsvector('english', content)) stored,
+  primary key (material_id, page_no)
+);
+create index if not exists material_pages_fts on public.material_pages using gin (fts);
+
+create table if not exists public.senin_chats (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  title text not null default 'New chat' check (char_length(title) <= 120),
+  subject_id text references public.subjects(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists senin_chats_user on public.senin_chats (user_id, updated_at desc);
+
+create table if not exists public.senin_messages (
+  id bigint generated always as identity primary key,
+  chat_id uuid not null references public.senin_chats(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  role text not null check (role in ('user','assistant')),
+  content text not null default '' check (char_length(content) <= 60000),
+  attachments jsonb not null default '[]'::jsonb,
+  sources jsonb not null default '[]'::jsonb,
+  model text,
+  created_at timestamptz not null default now()
+);
+create index if not exists senin_messages_chat on public.senin_messages (chat_id, id);
+
+-- doubts asked per student per day (India time); only changed through the functions below
+create table if not exists public.senin_usage (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  day date not null,
+  count int not null default 0,
+  primary key (user_id, day)
+);
+
+alter table public.material_pages enable row level security;
+alter table public.senin_chats    enable row level security;
+alter table public.senin_messages enable row level security;
+alter table public.senin_usage    enable row level security;
+
+drop policy if exists "material pages admin" on public.material_pages;
+drop policy if exists "senin chats own"      on public.senin_chats;
+drop policy if exists "senin messages read"  on public.senin_messages;
+drop policy if exists "senin messages add"   on public.senin_messages;
+drop policy if exists "senin messages del"   on public.senin_messages;
+drop policy if exists "senin usage read"     on public.senin_usage;
+-- students never read material_pages directly; senin_search() returns only pages of visible PDFs
+create policy "material pages admin" on public.material_pages for all using (public.is_admin()) with check (public.is_admin());
+-- chats are private to their owner (not even the admin reads them)
+create policy "senin chats own" on public.senin_chats for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "senin messages read" on public.senin_messages for select using (user_id = auth.uid());
+create policy "senin messages add" on public.senin_messages for insert with check (
+  user_id = auth.uid() and exists (select 1 from public.senin_chats c where c.id = chat_id and c.user_id = auth.uid()));
+create policy "senin messages del" on public.senin_messages for delete using (user_id = auth.uid());
+create policy "senin usage read" on public.senin_usage for select using (user_id = auth.uid() or public.is_admin());
+
+insert into public.app_settings (key, value) values ('senin', '{"enabled": true, "daily_limit": 25}'::jsonb)
+on conflict (key) do nothing;
+
+create or replace function public.senin_today() returns date
+language sql stable set search_path = public as $$ select (now() at time zone 'Asia/Kolkata')::date $$;
+
+-- takes one doubt from today's allowance; returns how many are left (raises SENIN_LIMIT / SENIN_OFF)
+create or replace function public.senin_take_quota() returns int
+language plpgsql security definer set search_path = public as $$
+declare lim int := 25; en boolean := true; used int; cfg jsonb;
+begin
+  if auth.uid() is null then raise exception 'login required'; end if;
+  select value into cfg from public.app_settings where key = 'senin';
+  if cfg is not null then
+    lim := greatest(0, coalesce((cfg->>'daily_limit')::int, 25));
+    en  := coalesce((cfg->>'enabled')::boolean, true);
+  end if;
+  if public.is_admin() then
+    insert into public.senin_usage (user_id, day, count) values (auth.uid(), public.senin_today(), 1)
+    on conflict (user_id, day) do update set count = senin_usage.count + 1;
+    return 999;
+  end if;
+  if not en then raise exception 'SENIN_OFF'; end if;
+  insert into public.senin_usage (user_id, day, count) select auth.uid(), public.senin_today(), 1 where lim > 0
+  on conflict (user_id, day) do update set count = senin_usage.count + 1 where senin_usage.count < lim
+  returning count into used;
+  if used is null then raise exception 'SENIN_LIMIT'; end if;
+  return lim - used;
+end $$;
+
+-- gives a doubt back when the AI failed (called only by the Edge Function with the service role)
+create or replace function public.senin_refund_quota(p_user uuid) returns void
+language sql security definer set search_path = public as $$
+  update public.senin_usage set count = greatest(0, count - 1) where user_id = p_user and day = public.senin_today();
+$$;
+
+-- finds the pages of visible PDFs that best match a question
+create or replace function public.senin_search(q text, p_subject text default null, p_limit int default 6)
+returns table (material_id uuid, page_no int, title text, subject_id text, section text, unit_no int, content text, rank real)
+language sql stable security definer set search_path = public as $$
+  with tq as (
+    select nullif(replace(plainto_tsquery('english', left(coalesce(q, ''), 2000))::text, '&', '|'), '')::tsquery as t
+  )
+  select mp.material_id, mp.page_no, m.title, m.subject_id, m.section, u.unit_no, left(mp.content, 2500),
+         ts_rank_cd(mp.fts, tq.t) as rank
+  from tq, public.material_pages mp
+  join public.materials m on m.id = mp.material_id
+  left join public.units u on u.id = m.unit_id
+  where auth.uid() is not null and tq.t is not null and m.is_visible
+    and (p_subject is null or m.subject_id = p_subject)
+    and mp.fts @@ tq.t
+  order by rank desc
+  limit least(greatest(coalesce(p_limit, 6), 1), 10);
+$$;
+
+-- the text of one visible PDF, when a student attaches it from "SemPrep notes"
+create or replace function public.senin_material_text(p_material uuid)
+returns table (page_no int, content text)
+language sql stable security definer set search_path = public as $$
+  select mp.page_no, mp.content from public.material_pages mp
+  join public.materials m on m.id = mp.material_id
+  where auth.uid() is not null and mp.material_id = p_material and (m.is_visible or public.is_admin())
+  order by mp.page_no;
+$$;
+
+-- admin: how much Senin is used, and which PDFs it has read
+create or replace function public.senin_admin_stats() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare r jsonb;
+begin
+  if not public.is_admin() then raise exception 'admin only'; end if;
+  select jsonb_build_object(
+    'today_doubts',   coalesce((select sum(count) from public.senin_usage where day = public.senin_today()), 0),
+    'today_students', (select count(*) from public.senin_usage where day = public.senin_today() and count > 0),
+    'week', coalesce((select jsonb_agg(jsonb_build_object('day', d, 'doubts', n) order by d) from (
+        select day d, sum(count) n from public.senin_usage where day > public.senin_today() - 7 group by day) w), '[]'::jsonb),
+    'total_chats', (select count(*) from public.senin_chats),
+    'indexed', coalesce((select jsonb_object_agg(material_id, jsonb_build_object('pages', n, 'empty', e)) from (
+        select material_id, count(*) n, count(*) filter (where length(trim(content)) < 20) e
+        from public.material_pages group by material_id) x), '{}'::jsonb)
+  ) into r;
+  return r;
+end $$;
+
+revoke execute on function public.senin_take_quota, public.senin_search, public.senin_material_text,
+  public.senin_admin_stats, public.senin_refund_quota from public, anon;
+grant execute on function public.senin_take_quota, public.senin_search, public.senin_material_text,
+  public.senin_admin_stats to authenticated;
+revoke execute on function public.senin_refund_quota from authenticated;
+grant execute on function public.senin_refund_quota to service_role;
+
+-- photos and PDFs students attach to a doubt: private, each student only sees their own folder
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('senin-uploads', 'senin-uploads', false, 10485760,
+        array['image/png','image/jpeg','image/webp','image/gif','image/heic','image/heif','application/pdf'])
+on conflict (id) do nothing;
+drop policy if exists "senin uploads read"   on storage.objects;
+drop policy if exists "senin uploads write"  on storage.objects;
+drop policy if exists "senin uploads delete" on storage.objects;
+create policy "senin uploads read"   on storage.objects for select to authenticated using (bucket_id = 'senin-uploads' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "senin uploads write"  on storage.objects for insert to authenticated with check (bucket_id = 'senin-uploads' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "senin uploads delete" on storage.objects for delete to authenticated using (bucket_id = 'senin-uploads' and (storage.foldername(name))[1] = auth.uid()::text);

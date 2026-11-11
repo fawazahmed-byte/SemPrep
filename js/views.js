@@ -277,7 +277,7 @@ VIEWS.subject = async ([sid, unitNo], alive) => {
 };
 
 /* ---------- PDF reader ---------- */
-VIEWS.reader = async ([mid], alive) => {
+VIEWS.reader = async ([mid, startPage], alive) => {
   const m = S.materials.find(x => x.id === mid && (x.is_visible || isAdmin()));
   if (!m) { shell('', '<div class="empty">This PDF is not available.</div>'); return; }
   const u = m.unit_id ? unitById(m.unit_id) : null;
@@ -538,6 +538,8 @@ VIEWS.reader = async ([mid], alive) => {
     updatePager();
   }
   if (total && (!m.page_count || m.page_count !== total) && isAdmin()) sb.from('materials').update({ page_count: total }).eq('id', m.id);
+  const jump = Number(startPage);
+  if (jump > 1 && jump <= total) { goPage(jump); setTimeout(() => { if (alive()) goPage(jump); }, 400); } // again once page heights settle
 };
 
 /* ---------- quiz diagrams (private bucket → short-lived signed URLs) ---------- */

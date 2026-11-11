@@ -120,6 +120,8 @@ async function loadSettings() {
   S.festiveOffered = f ? f.value !== false : true;
   const ex = (data || []).find(r => r.key === 'exam_countdown');
   S.exam = ex && ex.value && typeof ex.value === 'object' ? ex.value : null;
+  const sn = (data || []).find(r => r.key === 'senin');
+  S.senin = sn && sn.value && typeof sn.value === 'object' ? sn.value : { enabled: true, daily_limit: 25 };
 }
 
 /* ---------- semester exam countdown (set in Admin → Overview) ---------- */
@@ -342,6 +344,7 @@ let routeSeq = 0;
 async function route() {
   const seq = ++routeSeq;
   if (S.cleanup) { try { S.cleanup(); } catch {} S.cleanup = null; }
+  document.body.classList.remove('sn-ready', 'sn-page-on'); // shell() turns the Senin button back on
   let { name, args } = parseHash();
   if (name === 'auth-callback') return;
   applyTheme();
@@ -363,6 +366,7 @@ const NAV = [
   { id: 'home', label: 'Home', short: 'Home', icon: 'home' },
   { id: 'perf', label: 'My progress', short: 'Progress', icon: 'progress' },
   { id: 'leaderboard', label: 'Leaderboard', short: 'Ranks', icon: 'trophy' },
+  { id: 'senin', label: 'Senin AI', short: 'Senin', icon: 'sparkle', badge: 'NEW' },
   ...EXAM_PAGES.map(x => ({ id: x.nav, label: x.label, short: x.short, icon: x.icon })),
   { id: 'feedback', label: 'Feedback', short: 'Feedback', icon: 'chat' },
   { id: 'profile', label: 'My profile', short: 'Profile', icon: 'user' },
@@ -384,7 +388,7 @@ function shell(active, inner) {
   <div class="shell">
     <aside class="side" aria-label="Main">
       <div class="side-head">${logoHTML('#home')}${bellHTML()}</div>
-      <nav class="nav">${nav.map(n => `<a href="#${n.id}" class="${n.id === active ? 'on' : ''}" ${n.id === active ? 'aria-current="page"' : ''}>${icon(n.icon)}${n.label}</a>`).join('')}</nav>
+      <nav class="nav">${nav.map(n => `<a href="#${n.id}" class="${n.id === active ? 'on' : ''}" ${n.id === active ? 'aria-current="page"' : ''}>${icon(n.icon)}${n.label}${n.badge ? `<span class="nav-new">${n.badge}</span>` : ''}</a>`).join('')}</nav>
       <div><h4>Your subjects</h4>${subj}</div>
       <div class="user">
         <a class="who" href="#profile" title="My profile"><div class="avatar">${esc((p.username || '?')[0].toUpperCase())}</div><div><b>${esc(p.username)}</b><small>${esc(meta)}</small></div></a>
@@ -401,6 +405,7 @@ function shell(active, inner) {
     <nav class="tabbar" aria-label="Main">${tabs.map(n => `<a href="#${n.id}" class="${n.id === active ? 'on' : ''}">${icon(n.icon, 22)}${n.short}</a>`).join('')}<button type="button" class="${moreOn ? 'on' : ''}" data-act="more" aria-haspopup="dialog">${icon('menu', 22)}More</button></nav>
   </div>`;
   tickExamBar();
+  if (typeof seninMount === 'function') seninMount(active);
   return $('#content');
 }
 
@@ -604,6 +609,7 @@ VIEWS.newpass = () => {
 
 async function logout() {
   closeBell(); if (sb) stopWatchingAnnouncements();
+  if (typeof seninReset === 'function') seninReset();
   if (sb) await sb.auth.signOut();
   S.anns = []; S.session = null; S.profile = null; S.progress = {}; S.reading = {};
   go('#landing');

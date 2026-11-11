@@ -75,7 +75,11 @@ All in the `public` schema. RLS is **on** for every table.
 | `reading_progress` | Pages each user has seen per PDF (`pages_viewed`) | User reads/writes own |
 | `announcements` | Title, message, `is_important` (pinned), `end_date`, `is_hidden` | Logged-in users read active ones; admin edits |
 | `feedback` | One feedback per user: rating, helped, comment, suggestion | User reads/writes own; admin reads all |
-| `app_settings` | Key/value settings: `festive_offered` (Diwali), `exam_countdown` ({label, at, end, show}) | Everyone reads; admin edits |
+| `app_settings` | Key/value settings: `festive_offered` (Diwali), `exam_countdown` ({label, at, end, show}), `senin` ({enabled, daily_limit}) | Everyone reads; admin edits |
+| `material_pages` | Senin AI: the text of every PDF page (`material_id`, `page_no`, `content`, full-text index `fts`) | **Admin only** (written from Admin → Senin AI). Students search it only through `senin_search()`, which returns pages of visible PDFs |
+| `senin_chats` | Senin AI conversations: `title`, `subject_id`, `updated_at` | **Owner only** (not even the admin can read them) |
+| `senin_messages` | Each question/answer: `role` (user/assistant), `content`, `attachments`, `sources` (PDF pages used), `model` | Owner reads/adds/deletes own |
+| `senin_usage` | Doubts asked per student per day (India time) | User reads own, admin reads all; changed only by `senin_take_quota()` / `senin_refund_quota()` |
 
 **`materials.section` values**
 
@@ -98,6 +102,7 @@ Two CHECK constraints enforce this (`materials_section_check`, `materials_check`
 - **Bucket `materials`** (private). Path inside the bucket: `<subject>/<section>/<random-id>.pdf`, e.g. `ml/college/de80734a-….pdf`.
 - The matching row in the **`materials` table** has that path in `file_path`, plus the title, section, subject/unit and page count. **The table row is what makes a PDF appear on the site.** A file with no row is invisible; a row whose file is missing shows an error.
 - **Bucket `quiz-images`** (private, max 5 MB, PNG/JPEG/WebP/GIF): quiz diagrams, path `<unit-id>/<random-id>.png`, linked from `questions.image_path`.
+- **Bucket `senin-uploads`** (private, max 10 MB, images + PDF): photos/PDFs students attach to a Senin doubt, path `<user-id>/<random-id>.<ext>`. Each student can only read/write their own folder. Deleting a chat in Senin deletes its files too.
 - Students get **signed URLs** that expire after 10 minutes (PDFs) or 1 hour (diagrams). Files are never public.
 - Storage rules: logged-in users can read a PDF **only if its `materials` row is visible**; only the admin can upload/replace/delete. Any logged-in user can view quiz diagrams.
 - Deleting in the Admin page removes both the row and the file. If you delete in the dashboard, delete both yourself.
@@ -123,6 +128,13 @@ Two CHECK constraints enforce this (`materials_section_check`, `materials_check`
 - `get_leaderboard(subject)`: 20 points per fully-read unit + best quiz % per unit (a quiz only counts once the unit is read, or if the unit has no material). Admin-hidden students are excluded.
 
 **Admin functions**: `admin_stats()` (numbers on the Overview tab) and `admin_students()` (Students tab). Both refuse non-admins.
+
+**Senin AI (doubt chatbot)**
+- Edge Function **`senin`** (code in `supabase/functions/senin/index.ts`; see it under Edge Functions → senin, with logs). It runs as the logged-in student, so RLS applies to everything it reads and writes.
+- Secret **`GEMINI_API_KEY`** (Edge Functions → Secrets) = the Google AI Studio key. Optional secret `SENIN_MODELS` = comma-separated Gemini models to try in order (default `gemini-3.5-flash,gemini-3.1-flash-lite`).
+- Each doubt: `senin_take_quota()` takes one from today's allowance (raises `SENIN_LIMIT` / `SENIN_OFF`; the admin has no limit) → `senin_search(q, subject)` finds the best matching PDF pages (Postgres full-text search) → Gemini answers, streamed to the browser → the answer is saved with the pages it used. If Gemini fails, `senin_refund_quota()` (service role only) gives the doubt back.
+- Settings: Admin → **Senin AI** (on/off, doubts per student per day, usage stats, which PDFs Senin has read, "Read new PDFs" button). New uploads are read automatically. Scanned PDFs have no text, so Senin can't search them (students can still attach them).
+- Gemini free tier: Google limits requests per minute/day for the whole key. When busy, students see "Senin is getting a lot of doubts right now". Adding billing to the key in Google AI Studio removes this without code changes. On the free tier Google may use prompts to improve its products.
 
 **Realtime**: the `announcements` table is in the `supabase_realtime` publication; browsers subscribe and refresh the bell when an announcement is added/changed. RLS still applies.
 

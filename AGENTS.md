@@ -9,6 +9,7 @@ A study website for **QISCET 3‑1 (third year, first semester) students**, buil
 - **Unit material**: 5 subjects × 5 units. Each unit has *College material* and *Special material* PDFs, shown in a view-only reader with a watermark, Read mode (full screen) and Previous/Next page buttons.
 - **A quiz per unit**: 25 random questions, 15 minutes, graded on the server, with explanations and optional diagrams. "Revise my mistakes" = practice round of only the wrong answers.
 - **Exam material per subject**: Mid answers, 2 marks answers, Mid bits, Cheat sheets, Last minute revision sheets (each its own page).
+- **Senin AI**: a doubt chatbot (floating octopus button on every page + the `#senin` page). Students type a doubt, attach photos/PDFs or pick SemPrep notes; answers stream from Google Gemini with Mermaid diagrams and links to the exact PDF page used.
 - **Progress map, leaderboard, announcements (with a bell + live notifications), exam countdown, feedback, About page, Diwali theme.**
 - **Admin page** (only for the admin account) to manage all of the above.
 
@@ -26,7 +27,7 @@ Subjects: `ml` Machine Learning, `flat` Formal Languages and Automata Theory, `a
 ## 3. Files
 
 ```
-index.html                 Loads fonts, libraries and the JS files in order (config → octo → icons → app → views → admin)
+index.html                 Loads fonts, libraries and the JS files in order (config → octo → icons → app → views → admin → senin)
 css/style.css              All styles. Colour tokens on :root, Diwali theme on body.diwali, mobile rules at max-width 860px
 js/config.js               SEMPREP_CONFIG: Supabase URL + anon key (public), college domain, admin email, quiz size/minutes
 js/app.js                  Core: config, global state S, helpers ($, $$, esc, toast…), EXAM_PAGES, routing, app shell
@@ -35,6 +36,9 @@ js/views.js                Student pages: landing, about, home, subject, reader,
                            exam material pages (generated from EXAM_PAGES), feedback
 js/admin.js                Admin page (tabs: Overview, Materials, Quiz bank, Exam material, Announcements, Feedback, Students),
                            PDF upload with progress, quiz import from text or from a PDF (with diagram cropping)
+js/senin.js                Senin AI: floating button + panel, #senin page, chat history, attachments, markdown/diagram
+                           rendering (marked, DOMPurify, mermaid loaded on demand), Admin "Senin AI" tab, PDF text indexing
+supabase/functions/senin/  Edge Function that checks the daily limit, searches material_pages, calls Gemini and streams the answer
 js/icons.js                ICON_PATHS + icon(name, size) → inline SVG
 js/octo.js                 Octopus mascot SVG strings
 supabase/schema.sql        The whole backend: tables, triggers, RLS policies, RPC functions, storage buckets. Re-runnable.
@@ -52,7 +56,7 @@ content/                   (git-ignored) private drafts of quiz questions — co
 - **Global state** `S` (in `app.js`): `session`, `profile`, `units`, `materials`, `reading` (page progress), `progress`, `anns`, `exam`, `festiveOffered`, `cleanup` (function run when leaving a page).
 - **Routing**: hash based. `#name/arg1/arg2` → `VIEWS[name](args, alive)`. `alive()` returns false once the user navigated away (check it after every `await`). `route()` runs `S.cleanup` first.
   - Public routes (no login): `landing, about, login, signup, forgot, newpass, inbox` (the `PUBLIC` set).
-  - Logged-in routes: `home, perf, leaderboard, subject/<sid>/<unitNo>, reader/<materialId>, quiz/<unitId>[/revise/<attemptId>], result/<attemptId>, mid2, twomarks, midbits, cheats, lastmin (each /<sid>), feedback, about, admin/<tab>`.
+  - Logged-in routes: `home, perf, leaderboard, senin[/<chatId>], subject/<sid>/<unitNo>, reader/<materialId>[/<page>], quiz/<unitId>[/revise/<attemptId>], result/<attemptId>, mid2, twomarks, midbits, cheats, lastmin (each /<sid>), feedback, about, admin/<tab>`.
 - **Shell**: `shell(activeNavId, innerHTML)` renders sidebar + phone header + tab bar + exam countdown and returns `#content`.
 - **Exam material sections** are defined once in `EXAM_PAGES` (app.js). Each entry = nav id, DB `section` value, labels, suggested titles. The sidebar, the student pages, the reader's back link and the Admin "Exam material" tab are all generated from it. **To add a new section:** add an entry to `EXAM_PAGES` *and* add the section value to the two `materials` CHECK constraints in `schema.sql`.
 - **Security in the browser is cosmetic.** Every real rule is enforced by Postgres RLS / SECURITY DEFINER functions. Never rely on JS checks alone.
@@ -62,7 +66,8 @@ content/                   (git-ignored) private drafts of quiz questions — co
 - Login → `loadSettings()` (app_settings: Diwali flag, exam countdown) → `loadCore()` (profile, units, materials, reading progress, announcements) → Realtime channel on `announcements`.
 - Reader: `storage.createSignedUrl(file_path, 600)` → pdf.js loads with range requests (only viewed pages) → pages seen are saved to `reading_progress` (debounced upsert).
 - Quiz: `rpc('get_quiz')` (no answers sent) → user answers → `rpc('submit_quiz')` grades on the server and returns correct answers + explanations. Diagrams: `storage('quiz-images').createSignedUrls`.
-- Admin uploads: PDFs go to bucket `materials` by XHR (to show progress), then a row is inserted in `materials`. Quiz diagrams go to bucket `quiz-images`.
+- Admin uploads: PDFs go to bucket `materials` by XHR (to show progress), then a row is inserted in `materials`. Quiz diagrams go to bucket `quiz-images`. Right after an upload, `seninAutoIndex` reads the PDF's text in the browser (pdf.js) into `material_pages`.
+- Senin AI: browser → `POST /functions/v1/senin` (user's JWT) → the function takes one doubt from `senin_take_quota()`, finds matching pages with `senin_search()`, sends history + attachments + pages to Gemini (`gemini-3.5-flash`, falling back to `gemini-3.1-flash-lite`; override with the `SENIN_MODELS` secret) and streams NDJSON back (`meta`, `d` chunks, `done`/`error`). Chats/messages are saved in `senin_chats`/`senin_messages` (owner-only RLS). Student uploads go to the private bucket `senin-uploads/<user-id>/…`. The `GEMINI_API_KEY` exists only as a Supabase Edge Function secret: never put it in the frontend or git.
 
 ## 6. Rules for making changes
 

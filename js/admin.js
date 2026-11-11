@@ -193,8 +193,9 @@ ADMIN.materials = async (el, alive) => {
     const btn = $('button[type=submit]', am); setBusy(btn, true, 'Uploading…');
     try {
       const { path, pages } = await uploadPDF(file, am.sid.value, am.section.value, progressTo(btn));
-      const { error } = await sb.from('materials').insert({ subject_id: am.sid.value, unit_id: Number(am.unit.value), section: am.section.value, title, file_path: path, page_count: pages });
+      const { data: row, error } = await sb.from('materials').insert({ subject_id: am.sid.value, unit_id: Number(am.unit.value), section: am.section.value, title, file_path: path, page_count: pages }).select().single();
       if (error) { await sb.storage.from('materials').remove([path]); throw error; }
+      if (typeof seninAutoIndex === 'function') seninAutoIndex(row, file);
       const u = unitById(am.unit.value);
       toast(`Published to ${SUBJ[am.sid.value].code} Unit ${u?.unit_no} (${pages} pages)`);
       A.matSubject = am.sid.value; ADMIN.materials(el, alive);
@@ -676,8 +677,9 @@ ADMIN.mid = async (el, alive) => {
     const btn = $('button[type=submit]', f); setBusy(btn, true, 'Uploading…');
     try {
       const { path, pages } = await uploadPDF(file, sid, sec, progressTo(btn));
-      const { error } = await sb.from('materials').insert({ subject_id: sid, unit_id: null, section: sec, title, file_path: path, page_count: pages });
+      const { data: row, error } = await sb.from('materials').insert({ subject_id: sid, unit_id: null, section: sec, title, file_path: path, page_count: pages }).select().single();
       if (error) { await sb.storage.from('materials').remove([path]); throw error; }
+      if (typeof seninAutoIndex === 'function') seninAutoIndex(row, file);
       toast(`Published ${SUBJ[sid].code} · ${title} (${pages} pages) in ${EXAM_BY_SECTION[sec].label}`);
       A.midType = sec; ADMIN.mid(el, alive);
     } catch (err) {
