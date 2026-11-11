@@ -870,8 +870,8 @@ body.sn-open .sn-fab, body.sn-page-on .sn-fab, body.read-mode .sn-fab { display:
 .sn-main .sn-compose { padding: 10px clamp(16px, 4vw, 48px) 12px; }
 .sn-main .sn-msg.user { max-width: min(640px, 86%); }
 .sn-main .sn-body { max-width: 760px; }
-.sn-hist-list { overflow-y: auto; min-height: 0; display: grid; align-content: start; gap: 2px; }
-.sn-hist-row { display: flex; align-items: center; border-radius: 12px; }
+.sn-hist-list { overflow-y: auto; overflow-x: hidden; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 2px; }
+.sn-hist-row { display: flex; align-items: center; min-width: 0; border-radius: 12px; }
 .sn-hist-row:hover, .sn-hist-row.on { background: var(--bg); }
 .sn-hist-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 8px; border: 0; background: none; color: var(--text); font-weight: 600; font-size: .9rem; text-align: left; cursor: pointer; }
 .sn-hist-open i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
