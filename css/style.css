@@ -786,6 +786,9 @@ body.sn-open .sn-fab, body.sn-page-on .sn-fab, body.read-mode .sn-fab { display:
 .sn-md th { background: color-mix(in srgb, var(--text) 5%, transparent); font-weight: 800; }
 .sn-md blockquote { margin-left: 0; padding: 8px 14px; border-radius: 12px; background: color-mix(in srgb, var(--hl) 18%, transparent); }
 .sn-md hr { border: 0; border-top: 1px solid var(--line); }
+.sn-md .katex { font-size: 1.08em; }
+.sn-md .katex-display { margin: .6em 0; padding: 8px 4px; overflow-x: auto; overflow-y: hidden; }
+.sn-tex { white-space: pre-wrap; }
 .sn-cite { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; margin: 0 2px; border-radius: 6px; vertical-align: 2px;
   background: color-mix(in srgb, var(--s-ai) 14%, transparent); color: var(--s-ai) !important; font-size: .72rem; font-weight: 800; text-decoration: none; }
 .sn-cite:hover { background: var(--s-ai); color: #fff !important; }

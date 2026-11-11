@@ -7,8 +7,10 @@ const SENIN_FN = `${CFG.SUPABASE_URL}/functions/v1/senin`;
 const SN_LIBS = {
   marked: 'https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js',
   purify: 'https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js',
-  mermaid: 'https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js'
+  mermaid: 'https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js',
+  katex: 'https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js'
 };
+const SN_KATEX_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css';
 const SN_MAX_FILES = 3, SN_MAX_MB = 10;
 const SN_SUGG = {
   ml: ['Bias vs variance, with a simple example', 'Explain gradient descent step by step with a diagram', 'Bagging vs boosting in 5 points for 5 marks', 'How does k-NN classify a new point?'],
@@ -93,8 +95,44 @@ function snMd(m) {
     return s ? `<a class="sn-cite" href="#reader/${esc(s.material_id)}/${s.page_no}" title="${esc(snSrcLabel(s) + ' · ' + s.title + ' · page ' + s.page_no)}">${n}</a>` : '';
   }).join(''));
   m._mm = blocks;
-  if (!window.marked || !window.DOMPurify) return `<p>${esc(src).replace(/\n/g, '<br>')}</p>`;
-  return DOMPurify.sanitize(marked.parse(src), { ADD_ATTR: ['target'] });
+  const math = [];
+  src = snPullMath(src, math);
+  if (!window.marked || !window.DOMPurify) return `<p>${esc(snPutMath(src, math, false)).replace(/\n/g, '<br>')}</p>`;
+  return snPutMath(DOMPurify.sanitize(marked.parse(src), { ADD_ATTR: ['target'] }), math, true);
+}
+// Maths written in LaTeX ($…$, $$…$$, \(…\), \[…\]) is drawn with KaTeX, loaded the first time it's needed.
+// Code spans are left alone, and money like "$5 and $10" is not treated as maths.
+function snPullMath(src, math) {
+  const code = [];
+  src = src.replace(/```[\s\S]*?(```|$)|`[^`\n]*`/g, c => { code.push(c); return `\u0000C${code.length - 1}\u0000`; });
+  const keep = (tex, display) => { math.push({ tex: tex.trim(), display }); return `@@SNM${math.length - 1}@@`; };
+  src = src
+    .replace(/\$\$([\s\S]+?)\$\$/g, (_, t) => keep(t, true))
+    .replace(/\\\[([\s\S]+?)\\\]/g, (_, t) => keep(t, true))
+    .replace(/\\\(([\s\S]+?)\\\)/g, (_, t) => keep(t, false))
+    .replace(/\$(?=[^\s$\d])([^$\n]*?[^\s$\\])\$(?!\d)/g, (_, t) => keep(t, false))
+    .replace(/\$(?=[^\s$])([^$\n]*?[\\^_{][^$\n]*?[^\s$])\$(?!\d)/g, (_, t) => keep(t, false)); // e.g. $2^n$
+  return src.replace(/\u0000C(\d+)\u0000/g, (_, i) => code[Number(i)]);
+}
+function snPutMath(html, math, isHtml) {
+  if (!math.length) return html;
+  if (!window.katex) snNeedKatex();
+  return html.replace(/@@SNM(\d+)@@/g, (_, i) => {
+    const x = math[Number(i)];
+    if (!x) return '';
+    if (window.katex && isHtml) {
+      try { return katex.renderToString(x.tex, { displayMode: x.display, throwOnError: false, output: 'html', trust: false, strict: 'ignore' }); }
+      catch { /* fall through to plain text */ }
+    }
+    return isHtml ? `<code class="sn-tex">${esc(x.tex)}</code>` : x.tex;
+  });
+}
+function snNeedKatex() {
+  if (snNeedKatex.p) return;
+  if (!document.querySelector(`link[href="${SN_KATEX_CSS}"]`)) {
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = SN_KATEX_CSS; document.head.appendChild(l);
+  }
+  snNeedKatex.p = snLoad('katex').then(() => { if (!SN.busy) snRenderAll(); }).catch(() => { snNeedKatex.p = null; });
 }
 let snMermaidReady = false, snMmSeq = 0;
 function snDrawMermaid(code) {
